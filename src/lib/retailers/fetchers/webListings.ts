@@ -17,6 +17,8 @@ const SITE_TO_RETAILER: Array<{ site: string; retailerId: RetailerId }> = [
   { site: "target.com", retailerId: "target" },
   { site: "walmart.com", retailerId: "walmart" },
   { site: "tcgplayer.com", retailerId: "tcgplayer" },
+  { site: "forgeandfiregaming.com", retailerId: "forge_and_fire" },
+  { site: "flipsidegaming.com", retailerId: "flipside_gaming" },
 ];
 
 const cache = new Map<string, { at: number; urls: string[] }>();
@@ -123,10 +125,11 @@ export async function fetchWebRetailerOffers(
   // Search high-signal stores (DuckDuckGo HTML). Keep the fan-out bounded.
   const searchSites = [
     "gamenerdz.com",
+    "forgeandfiregaming.com",
+    "flipsidegaming.com",
+    "amazon.com",
     "coolstuffinc.com",
     "starcitygames.com",
-    "target.com",
-    "amazon.com",
   ];
 
   await Promise.all(
@@ -162,30 +165,27 @@ export async function fetchWebRetailerOffers(
       if (seen.has(key)) continue;
       seen.add(key);
 
+      const sellerNames: Record<RetailerId, string> = {
+        amazon: "Amazon.com",
+        target: "Target",
+        walmart: "Walmart",
+        tcgplayer: "TCGPlayer",
+        card_kingdom: "Card Kingdom",
+        gamenerdz: "GameNerdz",
+        coolstuffinc: "CoolStuffInc",
+        starcitygames: "StarCityGames",
+        channel_fireball: "Channel Fireball",
+        forge_and_fire: "Forge & Fire Gaming",
+        flipside_gaming: "Flipside Gaming",
+      };
+
       offers.push({
         retailerId,
-        sellerName:
-          retailerId === "amazon"
-            ? "Amazon.com"
-            : retailerId === "target"
-              ? "Target"
-              : retailerId === "walmart"
-                ? "Walmart"
-                : retailerId === "tcgplayer"
-                  ? "TCGPlayer"
-                  : retailerId === "card_kingdom"
-                    ? "Card Kingdom"
-                    : retailerId === "gamenerdz"
-                      ? "GameNerdz"
-                      : retailerId === "coolstuffinc"
-                        ? "CoolStuffInc"
-                        : retailerId === "starcitygames"
-                          ? "StarCityGames"
-                          : "Channel Fireball",
+        sellerName: sellerNames[retailerId],
         itemPriceCents: listing.priceCents,
         shippingCents: shippingFor(retailerId, listing.priceCents),
         url: listing.url,
-        inStock: listing.inStock,
+        inStock: listing.inStock || listing.isPreorder,
         isPreorder: listing.isPreorder,
         isDemo: false,
         soldByAmazon: retailerId === "amazon" ? true : undefined,

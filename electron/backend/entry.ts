@@ -8,22 +8,26 @@ import {
   preorderCatalog,
   productSearchText,
 } from "../../src/lib/catalog/products";
-import { RETAILER_ALLOWLIST, RETAILER_BY_ID } from "../../src/lib/retailers/allowlist";
+import {
+  PREORDER_WATCH_RETAILERS,
+  RETAILER_ALLOWLIST,
+  RETAILER_BY_ID,
+  type RetailerId,
+} from "../../src/lib/retailers/allowlist";
 import { fetchOffersForProduct } from "../../src/lib/retailers/adapters";
+import { fetchPreorderWatchOffers } from "../../src/lib/retailers/fetchers/preorderRetailers";
 import { dealScore, scoreOffer } from "../../src/lib/retailers/scorer";
 import {
   estimateTcgShippingCents,
   fetchTcgPlayerPriceInGroup,
 } from "../../src/lib/retailers/tcgcsv";
 import { estimateTaxCents } from "../../src/lib/money";
-import { retailerProductSearchUrl } from "../../src/lib/retailers/urls";
 import {
   normalizeSealedType,
   releaseBucket,
   type SealedTypeId,
 } from "../../src/lib/sealedTypes";
 import type { ProductSeed } from "../../src/lib/retailers/types";
-import type { RetailerId } from "../../src/lib/retailers/allowlist";
 
 let prisma: PrismaClient | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -442,7 +446,29 @@ async function liveStreetPrice(seed: ProductSeed): Promise<{
   shippingCents: number;
   url: string;
   isDemo: boolean;
+  retailerId: RetailerId;
 } | null> {
+  // Prefer dedicated preorder watch stores (Amazon, GameNerdz, Forge & Fire, Flipside).
+  try {
+    const watch = await fetchPreorderWatchOffers(seed);
+    const scored = watch
+      .map((o) => scoreOffer(o, seed.msrpCents))
+      .filter((o) => !o.rejected && (o.inStock || o.isPreorder))
+      .sort((a, b) => a.totalCents - b.totalCents);
+    const best = scored[0];
+    if (best) {
+      return {
+        itemPriceCents: best.itemPriceCents,
+        shippingCents: best.shippingCents,
+        url: best.url,
+        isDemo: false,
+        retailerId: best.retailerId,
+      };
+    }
+  } catch {
+    // fall through to TCGPlayer market
+  }
+
   if (!seed.tcgplayerGroupId || !seed.tcgplayerProductId) return null;
   try {
     const price = await fetchTcgPlayerPriceInGroup(
@@ -456,6 +482,37 @@ async function liveStreetPrice(seed: ProductSeed): Promise<{
       shippingCents: estimateTcgShippingCents(item),
       url: price.url || `https://www.tcgplayer.com/product/${seed.tcgplayerProductId}`,
       isDemo: false,
+      retailerId: "tcgplayer",
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function liveOfferForRetailer(
+  seed: ProductSeed,
+  retailerId: RetailerId,
+): Promise<{
+  itemPriceCents: number;
+  shippingCents: number;
+  url: string;
+  isDemo: boolean;
+  isPreorder: boolean;
+} | null> {
+  try {
+    const offers = await fetchPreorderWatchOffers(seed, retailerId);
+    const scored = offers
+      .map((o) => scoreOffer(o, seed.msrpCents))
+      .filter((o) => !o.rejected && (o.inStock || o.isPreorder))
+      .sort((a, b) => a.totalCents - b.totalCents);
+    const best = scored[0];
+    if (!best) return null;
+    return {
+      itemPriceCents: best.itemPriceCents,
+      shippingCents: best.shippingCents,
+      url: best.url,
+      isDemo: false,
+      isPreorder: best.isPreorder,
     };
   } catch {
     return null;
@@ -516,39 +573,70 @@ async function resetPreorderEventsForRadar() {
 
   const now = Date.now();
   let i = 0;
-  for (const seed of eligible.slice(0, 6)) {
-    const live = await liveStreetPrice(seed);
-    const retailerId: RetailerId = "tcgplayer";
-    const itemPriceCents = live?.itemPriceCents ?? seed.msrpCents;
-    const shippingCents = live?.shippingCents ?? 299;
-    const taxCents = estimateTaxCents(itemPriceCents, shippingCents);
-    await db().preorderEvent.create({
-      data: {
-        productId: seed.id,
-        productName: seed.name,
-        sealedType: seed.sealedType,
-        setName: seed.setName,
-        releaseDate: seed.releaseDate,
-        retailerId,
-        priceCents: itemPriceCents,
-        shippingCents,
-        taxCents,
-        totalCents: itemPriceCents + shippingCents + taxCents,
-        msrpCents: seed.msrpCents,
-        isMsrp: itemPriceCents <= seed.msrpCents,
-        url:
-          live?.url ??
-          retailerProductSearchUrl(retailerId, seed.name),
-        eventType: "went_live",
-        isDemo: live ? false : true,
-        createdAt: new Date(now - (8 + i * 7) * 60_000),
-      },
-    });
-    i += 1;
+  // Seed radar with live hits from Amazon / GameNerdz / Forge & Fire / Flipside.
+  for (const seed of eligible.slice(0, 4)) {
+    for (const retailerId of PREORDER_WATCH_RETAILERS) {
+      const live = await liveOfferForRetailer(seed, retailerId);
+      if (!live) continue;
+      const taxCents = estimateTaxCents(live.itemPriceCents, live.shippingCents);
+      await db().preorderEvent.create({
+        data: {
+          productId: seed.id,
+          productName: seed.name,
+          sealedType: seed.sealedType,
+          setName: seed.setName,
+          releaseDate: seed.releaseDate,
+          retailerId,
+          priceCents: live.itemPriceCents,
+          shippingCents: live.shippingCents,
+          taxCents,
+          totalCents: live.itemPriceCents + live.shippingCents + taxCents,
+          msrpCents: seed.msrpCents,
+          isMsrp: live.itemPriceCents <= seed.msrpCents,
+          url: live.url,
+          eventType: "went_live",
+          isDemo: false,
+          createdAt: new Date(now - (8 + i * 5) * 60_000),
+        },
+      });
+      i += 1;
+      if (i >= 8) break;
+    }
+    if (i >= 8) break;
+  }
+
+  // Fallback: at least one TCGPlayer/market event so the rail isn't empty.
+  if ((await db().preorderEvent.count()) === 0) {
+    for (const seed of eligible.slice(0, 3)) {
+      const live = await liveStreetPrice(seed);
+      if (!live) continue;
+      const taxCents = estimateTaxCents(live.itemPriceCents, live.shippingCents);
+      await db().preorderEvent.create({
+        data: {
+          productId: seed.id,
+          productName: seed.name,
+          sealedType: seed.sealedType,
+          setName: seed.setName,
+          releaseDate: seed.releaseDate,
+          retailerId: live.retailerId,
+          priceCents: live.itemPriceCents,
+          shippingCents: live.shippingCents,
+          taxCents,
+          totalCents: live.itemPriceCents + live.shippingCents + taxCents,
+          msrpCents: seed.msrpCents,
+          isMsrp: live.itemPriceCents <= seed.msrpCents,
+          url: live.url,
+          eventType: "went_live",
+          isDemo: false,
+          createdAt: new Date(now - 10 * 60_000),
+        },
+      });
+    }
   }
 }
 
 async function pollPreorders(pollMs: number) {
+  if (!prisma) return;
   const targets = radarTargets();
   if (targets.length === 0) return;
 
@@ -556,15 +644,37 @@ async function pollPreorders(pollMs: number) {
   const now = new Date();
   const next = new Date(now.getTime() + pollMs);
   const target = targets[tick % targets.length];
-  const live = await liveStreetPrice(target);
-  const retailerId: RetailerId = "tcgplayer";
-  const itemPriceCents = live?.itemPriceCents ?? target.msrpCents;
-  const shippingCents = live?.shippingCents ?? 399;
+  const retailerId =
+    PREORDER_WATCH_RETAILERS[tick % PREORDER_WATCH_RETAILERS.length]!;
+
+  const live = await liveOfferForRetailer(target, retailerId);
+  if (!prisma) return;
+  // Skip ticks with no real listing — never invent a preorder price.
+  if (!live) {
+    await db().watcherState.upsert({
+      where: { id: "preorder" },
+      create: {
+        id: "preorder",
+        status: "watching",
+        lastPolledAt: now,
+        nextPollAt: next,
+        message: `No live ${RETAILER_BY_ID[retailerId].name} listing for ${target.name}`,
+      },
+      update: {
+        status: "watching",
+        lastPolledAt: now,
+        nextPollAt: next,
+        message: `No live ${RETAILER_BY_ID[retailerId].name} listing for ${target.name}`,
+      },
+    });
+    return;
+  }
+
+  const itemPriceCents = live.itemPriceCents;
+  const shippingCents = live.shippingCents;
   const taxCents = estimateTaxCents(itemPriceCents, shippingCents);
   const totalCents = itemPriceCents + shippingCents + taxCents;
-  const productUrl =
-    live?.url ?? retailerProductSearchUrl(retailerId, target.name);
-  const isDemo = !live;
+  const productUrl = live.url;
 
   const existing = await db().preorderEvent.findFirst({
     where: { productId: target.id, retailerId },
@@ -593,7 +703,7 @@ async function pollPreorders(pollMs: number) {
       isMsrp: itemPriceCents <= target.msrpCents,
       url: productUrl,
       eventType,
-      isDemo,
+      isDemo: false,
     },
   });
 
@@ -604,13 +714,15 @@ async function pollPreorders(pollMs: number) {
       status: "watching",
       lastPolledAt: now,
       nextPollAt: next,
-      message: "Watching new & unreleased sealed",
+      message:
+        "Watching Amazon, GameNerdz, Forge & Fire, Flipside for new/unreleased sealed",
     },
     update: {
       status: "watching",
       lastPolledAt: now,
       nextPollAt: next,
-      message: "Watching new & unreleased sealed",
+      message:
+        "Watching Amazon, GameNerdz, Forge & Fire, Flipside for new/unreleased sealed",
     },
   });
 

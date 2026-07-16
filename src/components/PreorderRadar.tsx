@@ -142,7 +142,8 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
             </h2>
           </div>
           <p className="mt-1 text-xs text-[var(--parchment)]/55">
-            Only just-released + unreleased sets
+            Just-released + unreleased · Amazon, GameNerdz, Forge &amp; Fire,
+            Flipside
           </p>
         </div>
         {onCloseMobile && (

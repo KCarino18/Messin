@@ -7,7 +7,9 @@ export type RetailerId =
   | "amazon"
   | "target"
   | "walmart"
-  | "tcgplayer";
+  | "tcgplayer"
+  | "forge_and_fire"
+  | "flipside_gaming";
 
 export type RetailerConfig = {
   id: RetailerId;
@@ -81,6 +83,28 @@ export const RETAILER_ALLOWLIST: RetailerConfig[] = [
     directOnly: false,
     marketplace: true,
   },
+  {
+    id: "forge_and_fire",
+    name: "Forge & Fire Gaming",
+    domain: "forgeandfiregaming.com",
+    directOnly: true,
+    marketplace: false,
+  },
+  {
+    id: "flipside_gaming",
+    name: "Flipside Gaming",
+    domain: "flipsidegaming.com",
+    directOnly: true,
+    marketplace: false,
+  },
+];
+
+/** Retailers the Preorder Radar actively watches. */
+export const PREORDER_WATCH_RETAILERS: RetailerId[] = [
+  "amazon",
+  "gamenerdz",
+  "forge_and_fire",
+  "flipside_gaming",
 ];
 
 export const RETAILER_BY_ID = Object.fromEntries(

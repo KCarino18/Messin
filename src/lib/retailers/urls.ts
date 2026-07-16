@@ -21,6 +21,10 @@ export function retailerProductSearchUrl(retailerId: RetailerId, productName: st
       return `https://www.walmart.com/search?q=${q}`;
     case "tcgplayer":
       return `https://www.tcgplayer.com/search/magic/product?productLineName=magic&q=${q}&view=grid`;
+    case "forge_and_fire":
+      return `https://forgeandfiregaming.com/?s=${q}&post_type=product`;
+    case "flipside_gaming":
+      return `https://flipsidegaming.com/search?q=${q}`;
     default:
       return `https://www.google.com/search?q=${q}+magic+sealed`;
   }

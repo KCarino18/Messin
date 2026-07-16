@@ -1,5 +1,6 @@
 import { buildDemoOffers } from "./demoOffers";
 import { fetchCardKingdomOffers } from "./fetchers/cardKingdom";
+import { fetchPreorderWatchOffers } from "./fetchers/preorderRetailers";
 import { fetchWebRetailerOffers } from "./fetchers/webListings";
 import {
   estimateTcgShippingCents,
@@ -94,7 +95,10 @@ async function fetchLiveOffers(
     fetchTcgCsvOffers(product),
     fetchCardKingdomOffers(product),
   ];
-  if (deep) tasks.push(fetchWebRetailerOffers(product));
+  if (deep) {
+    tasks.push(fetchWebRetailerOffers(product));
+    tasks.push(fetchPreorderWatchOffers(product));
+  }
 
   const settled = await Promise.allSettled(tasks);
 
