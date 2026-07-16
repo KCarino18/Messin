@@ -14,9 +14,9 @@ function resourcePath(...parts) {
 }
 
 function loadBackend() {
-  const candidate = app.isPackaged
-    ? path.join(process.resourcesPath, "backend.dist.cjs")
-    : path.join(__dirname, "backend.dist.cjs");
+  // Keep backend inside app.asar so Node can resolve unpacked native deps
+  // from app.asar/node_modules (resources/backend.dist.cjs cannot).
+  const candidate = path.join(__dirname, "backend.dist.cjs");
   // eslint-disable-next-line import/no-dynamic-require, global-require
   return require(candidate);
 }

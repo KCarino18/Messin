@@ -18,11 +18,8 @@ await esbuild.build({
   define: {
     "import.meta.url": "__import_meta_url",
   },
-  external: [
-    "electron",
-    "better-sqlite3",
-    "@prisma/adapter-better-sqlite3",
-  ],
+  // Only native modules stay external; JS packages are bundled into the backend.
+  external: ["electron", "better-sqlite3"],
   alias: {
     "@": path.join(root, "src"),
   },
