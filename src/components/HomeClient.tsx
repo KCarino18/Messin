@@ -1,0 +1,103 @@
+"use client";
+
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { BudgetSetter } from "@/components/BudgetSetter";
+import { DealList, type Deal } from "@/components/DealList";
+import { ProductSearch } from "@/components/ProductSearch";
+import { PreorderRadar } from "@/components/PreorderRadar";
+
+export function HomeClient({ initialBudgetCents }: { initialBudgetCents: number }) {
+  const [budgetCents, setBudgetCents] = useState(initialBudgetCents);
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [mode, setMode] = useState("demo");
+  const [loading, startTransition] = useTransition();
+  const [radarOpen, setRadarOpen] = useState(false);
+
+  const loadDeals = useCallback((cents: number) => {
+    startTransition(async () => {
+      const res = await fetch(`/api/deals?budget=${cents}`);
+      if (!res.ok) return;
+      const data = (await res.json()) as { deals: Deal[]; mode: string };
+      setDeals(data.deals);
+      setMode(data.mode);
+    });
+  }, []);
+
+  useEffect(() => {
+    loadDeals(budgetCents);
+  }, [budgetCents, loadDeals]);
+
+  return (
+    <div className="app-root flex min-h-screen">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="relative overflow-hidden px-6 pb-10 pt-10 sm:px-10 lg:px-14 lg:pt-14">
+          <div className="pointer-events-none absolute -left-20 top-0 h-64 w-64 rounded-full bg-[var(--emerald-400)]/10 blur-3xl" />
+          <div className="pointer-events-none absolute right-10 top-8 h-40 w-40 rounded-full bg-[var(--brass-400)]/10 blur-3xl" />
+
+          <p className="text-xs uppercase tracking-[0.35em] text-[var(--emerald-300)]/80">
+            Sealed product · US reputable retailers
+          </p>
+          <h1 className="foil-text mt-3 font-display text-5xl leading-none tracking-wide sm:text-6xl lg:text-7xl">
+            MTG Budget
+          </h1>
+          <p className="mt-4 max-w-xl text-base text-[var(--parchment)]/70 sm:text-lg">
+            Set a spend ceiling. We rank factory-sealed Magic product by total
+            landed cost — item, shipping, and tax — from allowlisted US shops only.
+          </p>
+
+          <div className="mt-8">
+            <BudgetSetter
+              initialCents={budgetCents}
+              onBudgetChange={(cents) => setBudgetCents(cents)}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setRadarOpen(true)}
+            className="mt-6 inline-flex items-center gap-2 rounded-md border border-[var(--line)] px-3 py-2 text-xs uppercase tracking-widest text-[var(--brass-300)] lg:hidden"
+          >
+            <span className="radar-live-dot inline-block h-2 w-2 rounded-full bg-[var(--emerald-400)]" />
+            Open Preorder Radar
+          </button>
+        </header>
+
+        <main className="flex-1 space-y-12 px-6 pb-16 sm:px-10 lg:px-14">
+          <section>
+            <h2 className="font-display text-2xl text-[var(--brass-200)]">
+              Best sealed deals under budget
+            </h2>
+            <div className="mt-5">
+              <DealList
+                deals={deals}
+                budgetCents={budgetCents}
+                loading={loading}
+                mode={mode}
+              />
+            </div>
+          </section>
+
+          <section>
+            <h2 className="font-display text-2xl text-[var(--brass-200)]">
+              Find the cheapest reputable buy
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm text-[var(--parchment)]/60">
+              Penny + huge-shipping listings are rejected. Marketplace sellers must
+              clear reputation filters; Amazon/Walmart third-party offers are ignored.
+            </p>
+            <div className="mt-5 max-w-2xl">
+              <ProductSearch />
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <div className="sticky top-0 h-screen w-0 shrink-0 lg:w-[22rem] xl:w-[24rem]">
+        <PreorderRadar
+          mobileOpen={radarOpen}
+          onCloseMobile={() => setRadarOpen(false)}
+        />
+      </div>
+    </div>
+  );
+}

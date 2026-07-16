@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Product {
+  id          String         @id @default(cuid())
+  name        String
+  setName     String
+  category    String
+  msrpCents   Int
+  imageUrl    String?
+  searchText  String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  offers      Offer[]
+  preorders   PreorderEvent[]
+}
+
+model Offer {
+  id              String   @id @default(cuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  retailerId      String
+  sellerName      String
+  itemPriceCents  Int
+  shippingCents   Int
+  taxCents        Int
+  totalCents      Int
+  url             String
+  inStock         Boolean  @default(true)
+  isPreorder      Boolean  @default(false)
+  isDemo          Boolean  @default(false)
+  rejected        Boolean  @default(false)
+  rejectReason    String?
+  observedAt      DateTime @default(now())
+
+  @@index([productId, totalCents])
+  @@index([retailerId])
+}
+
+model Budget {
+  id           String   @id @default("default")
+  amountCents  Int
+  updatedAt    DateTime @updatedAt
+}
+
+model PreorderEvent {
+  id             String   @id @default(cuid())
+  productId      String?
+  product        Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productName    String
+  retailerId     String
+  priceCents     Int
+  shippingCents  Int
+  taxCents       Int
+  totalCents     Int
+  msrpCents      Int?
+  isMsrp         Boolean  @default(false)
+  url            String
+  eventType      String
+  isDemo         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model WatcherState {
+  id           String   @id @default("preorder")
+  lastPolledAt DateTime?
+  nextPollAt   DateTime?
+  status       String   @default("idle")
+  message      String?
+  updatedAt    DateTime @updatedAt
+}

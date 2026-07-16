@@ -1,0 +1,25 @@
+MTG Budget — One-click installer
+================================
+
+Requirements
+------------
+- Node.js 20 or newer (https://nodejs.org)
+- npm (included with Node.js)
+
+Install & launch
+----------------
+macOS / Linux:
+  1. Double-click Install.command  (macOS)
+     or run:  ./install.sh
+  2. When it finishes, the app opens at http://localhost:3000
+
+Windows:
+  1. Double-click Install.bat
+  2. When it finishes, the app opens at http://localhost:3000
+
+Later launches
+--------------
+macOS / Linux:  double-click Start-MTG-Budget.command  (or ./start.sh)
+Windows:        double-click Start-MTG-Budget.bat
+
+Stop the app with Ctrl+C in the terminal window.
