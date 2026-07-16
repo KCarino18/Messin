@@ -1,4 +1,4 @@
-name: Release installer
+name: Release desktop app
 
 on:
   push:
@@ -7,58 +7,137 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version (e.g. v0.1.0). Leave empty to use short SHA."
-        required: false
-        default: ""
+        description: "Release version tag (e.g. v0.2.0)"
+        required: true
+        default: "v0.2.0"
 
 permissions:
   contents: write
 
 jobs:
-  package-and-release:
+  release-meta:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Package installer zip
-        run: |
-          chmod +x scripts/package-installer.sh installer/*.sh installer/*.command
-          ./scripts/package-installer.sh
-
-      - name: Resolve release tag
-        id: meta
+      - id: meta
         run: |
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
             TAG="${{ github.ref_name }}"
-          elif [[ -n "${{ inputs.version }}" ]]; then
-            TAG="${{ inputs.version }}"
           else
-            TAG="v0.1.0-${GITHUB_SHA::7}"
+            TAG="${{ inputs.version }}"
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "Resolved release tag: $TAG"
 
-      - name: Create GitHub Release with installer
+  build-windows:
+    needs: release-meta
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build Windows exe
+        shell: bash
+        run: |
+          npm ci
+          export DATABASE_URL="file:./prisma/dev.db"
+          npx prisma generate
+          npx prisma migrate deploy
+          npm run db:seed
+          npm run build
+          DESKTOP_PLATFORM=win32 DESKTOP_ARCH=x64 node scripts/prepare-desktop.mjs
+          npx electron-builder --win portable nsis --x64 --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: |
+            dist-desktop/MTG-Budget-*-Windows.exe
+            dist-desktop/MTG-Budget-Setup-*.exe
+
+  build-linux:
+    needs: release-meta
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build Linux AppImage
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2
+          npm ci
+          export DATABASE_URL="file:./prisma/dev.db"
+          npx prisma generate
+          npx prisma migrate deploy
+          npm run db:seed
+          npm run build
+          DESKTOP_PLATFORM=linux DESKTOP_ARCH=x64 node scripts/prepare-desktop.mjs
+          npx electron-builder --linux AppImage --x64 --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-installer
+          path: dist-desktop/MTG-Budget-*-Linux.AppImage
+
+  build-mac:
+    needs: release-meta
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build macOS dmg
+        run: |
+          npm ci
+          export DATABASE_URL="file:./prisma/dev.db"
+          npx prisma generate
+          npx prisma migrate deploy
+          npm run db:seed
+          npm run build
+          DESKTOP_PLATFORM=darwin DESKTOP_ARCH=$(node -p process.arch) node scripts/prepare-desktop.mjs
+          npx electron-builder --mac dmg --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-installer
+          path: dist-desktop/MTG-Budget-*-macOS.dmg
+
+  publish-release:
+    needs: [release-meta, build-windows, build-linux, build-mac]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Collect release files
+        run: |
+          mkdir -p release-files
+          find artifacts -type f \( -name '*.exe' -o -name '*.AppImage' -o -name '*.dmg' \) -exec cp {} release-files/ \;
+          ls -lah release-files
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          name: MTG Budget ${{ steps.meta.outputs.tag }}
+          tag_name: ${{ needs.release-meta.outputs.tag }}
+          name: MTG Budget ${{ needs.release-meta.outputs.tag }}
           draft: false
           generate_release_notes: true
           body: |
-            ## One-click download
+            ## One-click download (no zip)
 
-            Download **MTG-Budget-Installer.zip**, unzip it, then:
+            Download the file for your OS, then **double-click it**:
 
-            - **macOS:** double-click `Install.command`
-            - **Windows:** double-click `Install.bat`
-            - **Linux:** run `./install.sh`
+            | OS | File |
+            | --- | --- |
+            | **Windows** | `MTG-Budget-*-Windows.exe` (portable — no install wizard) or `MTG-Budget-Setup-*.exe` (one-click setup) |
+            | **macOS** | `MTG-Budget-*-macOS.dmg` |
+            | **Linux** | `MTG-Budget-*-Linux.AppImage` |
 
-            Requires [Node.js 20+](https://nodejs.org).
-
-            After install, the app opens at http://localhost:3000
-          files: |
-            dist/MTG-Budget-Installer.zip
+            No unzipping. No Node.js install required.
+          files: release-files/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
