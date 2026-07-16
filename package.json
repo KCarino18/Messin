@@ -2,6 +2,9 @@
   "name": "mtg-budget",
   "version": "0.1.0",
   "private": true,
+  "description": "MTG Budget — sealed deals and preorder radar",
+  "author": "MTG Budget",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
@@ -13,6 +16,11 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:setup": "prisma migrate deploy && tsx prisma/seed.ts",
     "package:installer": "bash scripts/package-installer.sh",
+    "desktop:prepare": "node scripts/prepare-desktop.mjs",
+    "desktop:build": "bash scripts/build-desktop.sh",
+    "desktop:build:win": "bash scripts/build-desktop.sh win",
+    "desktop:build:linux": "bash scripts/build-desktop.sh linux",
+    "desktop:build:mac": "bash scripts/build-desktop.sh mac",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -32,10 +40,79 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
+    "tar": "^7.4.3",
     "tsx": "^4.23.1",
     "typescript": "^5"
+  },
+  "build": {
+    "appId": "com.mtgbudget.app",
+    "productName": "MTG Budget",
+    "copyright": "Copyright © MTG Budget",
+    "directories": {
+      "output": "dist-desktop",
+      "buildResources": "electron/build"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".desktop-resources/",
+        "to": "."
+      }
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        },
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "MTG-Budget-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "MTG-Budget-${version}-Windows.exe"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "artifactName": "MTG-Budget-Setup-${version}.exe",
+      "shortcutName": "MTG Budget",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        }
+      ],
+      "category": "Finance",
+      "artifactName": "MTG-Budget-${version}-Linux.AppImage"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "category": "public.app-category.finance",
+      "artifactName": "MTG-Budget-${version}-macOS.${ext}"
+    }
   }
 }

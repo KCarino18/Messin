@@ -1,7 +1,8 @@
 # MTG Budget
 
-[![Download installer](https://img.shields.io/badge/download-MTG--Budget--Installer.zip-3d9b72?style=for-the-badge&logo=github)](https://github.com/KCarino18/Messin/releases/latest/download/MTG-Budget-Installer.zip)
-[![Latest release](https://img.shields.io/github/v/release/KCarino18/Messin?style=for-the-badge)](https://github.com/KCarino18/Messin/releases/latest)
+[![Download for Windows](https://img.shields.io/badge/download-Windows_.exe-3d9b72?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/KCarino18/Messin/releases/latest)
+[![Download for macOS](https://img.shields.io/badge/download-macOS_.dmg-d4a85a?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/KCarino18/Messin/releases/latest)
+[![Download for Linux](https://img.shields.io/badge/download-Linux_.AppImage-62c095?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/KCarino18/Messin/releases/latest)
 
 Stylized sealed-product deal finder for Magic: The Gathering.
 
@@ -9,18 +10,16 @@ Set a budget, get the best **factory-sealed** deals from a curated US retailer a
 
 ## One-click download
 
-**→ [Download MTG-Budget-Installer.zip](https://github.com/KCarino18/Messin/releases/latest/download/MTG-Budget-Installer.zip)** ← click that to get the installer
+**No zip. No Node install. Download → double-click.**
 
-1. Unzip the download
-2. Run the installer for your OS:
-   - **macOS** — double-click `Install.command`
-   - **Windows** — double-click `Install.bat`
-   - **Linux** — run `./install.sh`
-3. The app opens at http://localhost:3000
+1. Open the [latest release](https://github.com/KCarino18/Messin/releases/latest)
+2. Download the file for your OS:
+   - **Windows:** `MTG-Budget-*-Windows.exe` (portable) or `MTG-Budget-Setup-*.exe`
+   - **macOS:** `MTG-Budget-*-macOS.dmg`
+   - **Linux:** `MTG-Budget-*-Linux.AppImage`
+3. Double-click it — the app opens
 
-Requires [Node.js 20+](https://nodejs.org). The installer installs dependencies, sets up the database, seeds demo data, builds the app, and launches it.
-
-All releases: https://github.com/KCarino18/Messin/releases
+That is the whole install.
 
 ## Features
 
@@ -36,9 +35,9 @@ Card Kingdom · CoolStuffInc · Channel Fireball · StarCityGames · GameNerdz �
 
 ## Stack
 
-Next.js (App Router) · TypeScript · Tailwind CSS · Prisma · SQLite
+Next.js (App Router) · TypeScript · Tailwind CSS · Prisma · SQLite · Electron (desktop builds)
 
-## Setup
+## Develop from source
 
 ```bash
 npm install
@@ -50,17 +49,25 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+### Build desktop installers locally
+
+```bash
+npm run desktop:build:win     # Windows .exe
+npm run desktop:build:linux   # Linux AppImage
+npm run desktop:build:mac     # macOS .dmg (macOS host required)
+```
+
+Artifacts land in `dist-desktop/`.
+
 ## Scripts
 
 | Command | Description |
 | --- | --- |
-| `npm run dev` | Start local dev server |
-| `npm run build` | Production build |
+| `npm run dev` | Start local web dev server |
+| `npm run build` | Production Next.js build |
 | `npm run db:seed` | Reseed sealed catalog + demo offers + preorder events |
 | `npm test` | Run total-price scorer checks |
-| `npm run package:installer` | Build `dist/MTG-Budget-Installer.zip` locally |
-
-Installer packages are also published automatically via GitHub Actions when you push a `v*` tag (or run the **Release installer** workflow).
+| `npm run desktop:build:win` | Build one-click Windows `.exe` |
 
 ## Notes
 
