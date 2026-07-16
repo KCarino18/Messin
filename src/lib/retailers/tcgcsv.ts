@@ -205,26 +205,28 @@ export async function fetchTcgPlayerSinglesForGroup(
     });
   }
 
-  // Deduplicate by card name: keep the printing with the highest market price
-  // (borderless/showcase chases matter for EV).
+  // Deduplicate by card name: keep strongest Normal + strongest Foil quotes.
   const byName = new Map<string, TcgSinglesCard>();
   for (const card of singles) {
-    // Strip treatment suffixes for pooling? Keep distinct names — treatments are
-    // separate pull paths; for ROI slots we want one entry per unique name at
-    // max price so chase variants don't dilute the rare pool unfairly.
     const key = card.name.replace(/\s*\(.*?\)\s*$/g, "").trim();
     const existing = byName.get(key);
-    if (!existing || card.marketPriceCents > existing.marketPriceCents) {
+    if (!existing) {
       byName.set(key, { ...card, name: key });
-    } else if (
-      existing &&
-      (card.foilMarketPriceCents ?? 0) > (existing.foilMarketPriceCents ?? 0)
-    ) {
-      byName.set(key, {
-        ...existing,
-        foilMarketPriceCents: card.foilMarketPriceCents,
-      });
+      continue;
     }
+    byName.set(key, {
+      ...existing,
+      name: key,
+      marketPriceCents: Math.max(existing.marketPriceCents, card.marketPriceCents),
+      lowPriceCents:
+        existing.lowPriceCents != null && card.lowPriceCents != null
+          ? Math.min(existing.lowPriceCents, card.lowPriceCents)
+          : (existing.lowPriceCents ?? card.lowPriceCents),
+      foilMarketPriceCents: Math.max(
+        existing.foilMarketPriceCents ?? 0,
+        card.foilMarketPriceCents ?? 0,
+      ) || null,
+    });
   }
 
   const value = [...byName.values()];

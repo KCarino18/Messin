@@ -119,7 +119,7 @@ export async function buildProductRoi(options: {
       ...base,
       cardCount: cards.length,
       roi,
-      message: `Hey — the ${productWord} costs about $${sticker} (${buyLabel}${sticker !== landed ? `, ~$${landed} landed` : ""}). Estimated chance you get your investment back after cracking and selling the singles is ${chance}% (${tone}). Expected net value ~$${(roi.expectedNetCents / 100).toFixed(0)} vs ~$${landed} landed (ROI ${roi.roiPercent}%).`,
+      message: `Hey — the ${productWord} costs about $${sticker} (${buyLabel}${sticker !== landed ? `, ~$${landed} landed` : ""}). Estimated chance you get your investment back after cracking and selling the singles (foil + non-foil @ TCGPlayer) is ${chance}% (${tone}). Expected net value ~$${(roi.expectedNetCents / 100).toFixed(0)} vs ~$${landed} landed (ROI ${roi.roiPercent}%).`,
     };
   } catch (error) {
     return {

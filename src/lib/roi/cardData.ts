@@ -4,7 +4,9 @@ import { fetchTcgPlayerSinglesForGroup } from "@/lib/retailers/tcgcsv";
 export type PricedCard = {
   name: string;
   rarity: "common" | "uncommon" | "rare" | "mythic";
+  /** TCGPlayer Normal (non-foil) market. */
   priceCents: number;
+  /** TCGPlayer Foil market (0 if no foil listing). */
   foilPriceCents: number;
 };
 
@@ -32,12 +34,12 @@ export async function loadPricedCardsForSet(setName: string): Promise<PricedCard
   const cards: PricedCard[] = singles.map((s) => ({
     name: s.name,
     rarity: s.rarity,
-    // Prefer market; fall back toward low only if market missing (already filtered).
+    // Keep Normal and Foil distinct — sim slots pick the matching finish.
     priceCents: s.marketPriceCents,
     foilPriceCents:
       s.foilMarketPriceCents && s.foilMarketPriceCents > 0
         ? s.foilMarketPriceCents
-        : Math.round(s.marketPriceCents * 1.35),
+        : 0,
   }));
 
   cache.set(cacheKey, { at: Date.now(), cards });

@@ -9,7 +9,7 @@ function makePool(): PricedCard[] {
       name: `Common ${i}`,
       rarity: "common",
       priceCents: 10,
-      foilPriceCents: 25,
+      foilPriceCents: 30, // distinct foil quote
     });
   }
   for (let i = 0; i < 40; i++) {
@@ -17,7 +17,7 @@ function makePool(): PricedCard[] {
       name: `Uncommon ${i}`,
       rarity: "uncommon",
       priceCents: 40,
-      foilPriceCents: 80,
+      foilPriceCents: 120,
     });
   }
   for (let i = 0; i < 50; i++) {
@@ -25,7 +25,7 @@ function makePool(): PricedCard[] {
       name: `Rare ${i}`,
       rarity: "rare",
       priceCents: i < 5 ? 2000 : 150,
-      foilPriceCents: i < 5 ? 3500 : 250,
+      foilPriceCents: i < 5 ? 4500 : 400, // foil chases worth more
     });
   }
   for (let i = 0; i < 15; i++) {
@@ -33,7 +33,7 @@ function makePool(): PricedCard[] {
       name: `Mythic ${i}`,
       rarity: "mythic",
       priceCents: i < 2 ? 8000 : 600,
-      foilPriceCents: i < 2 ? 12000 : 900,
+      foilPriceCents: i < 2 ? 15000 : 1200,
     });
   }
   return cards;
