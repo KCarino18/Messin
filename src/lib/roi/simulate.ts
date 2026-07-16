@@ -173,7 +173,16 @@ export function simulateSealedRoi(options: {
   if (!packCount || options.buyPriceCents <= 0) return null;
 
   const pools = poolByRarity(options.cards);
-  if (pools.rare.length + pools.mythic.length < 5) return null;
+  // Sparse preorder dumps (a handful of spoilers) invent absurd EV — require a
+  // real main-set priced pool before ranking rip ROI.
+  if (
+    pools.common.length < 40 ||
+    pools.uncommon.length < 20 ||
+    pools.rare.length + pools.mythic.length < 30 ||
+    options.cards.length < 100
+  ) {
+    return null;
+  }
 
   const withFoil = options.cards.filter((c) => c.foilPriceCents > 0).length;
   const trials = options.trials ?? 4000;

@@ -35,7 +35,7 @@ if (!Array.isArray(deals) || deals.length === 0) {
 
 const withRoi = deals.filter((d) => d.roiPercent != null);
 if (withRoi.length === 0) {
-  throw new Error("Expected ROI on rippable sealed deals");
+  throw new Error("Expected ROI on rippable sealed deals with full set pricing");
 }
 
 for (let i = 1; i < withRoi.length; i++) {
@@ -48,11 +48,21 @@ for (let i = 1; i < withRoi.length; i++) {
   }
 }
 
-// Unsupported SKUs (if any) should sit after ROI-ranked ones.
+// Sparse / unsupported SKUs must sit after ROI-ranked ones.
 const firstNull = deals.findIndex((d) => d.roiPercent == null);
 const lastRoi = deals.findLastIndex((d) => d.roiPercent != null);
 if (firstNull !== -1 && lastRoi !== -1 && firstNull < lastRoi) {
   throw new Error("Null-ROI deals should sort after ROI deals");
+}
+
+// Preorder spoiler dumps must not invent top ROI ranks.
+const sparseTop = withRoi.find((d) =>
+  /hobbit|star trek|reality fracture/i.test(d.product.setName),
+);
+if (sparseTop) {
+  throw new Error(
+    `Sparse upcoming set should not have ROI yet: ${sparseTop.product.name}`,
+  );
 }
 
 console.log(

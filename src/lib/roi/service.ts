@@ -94,7 +94,10 @@ export async function buildProductRoi(options: {
         ...base,
         cardCount: cards.length,
         roi: null,
-        message: `Not enough priced rares/mythics yet for ${options.setName}.`,
+        message:
+          cards.length < 100
+            ? `TCGPlayer only has ${cards.length} priced cards for ${options.setName} so far — too sparse for rip ROI (need a fuller set dump).`
+            : `Not enough priced commons/uncommons/rares yet for ${options.setName}.`,
         unsupportedReason: "insufficient_cards",
       };
     }
