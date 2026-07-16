@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("mtgDesktop", {
     ipcRenderer.invoke("deals:list", budgetCents, sealedTypes),
   searchProducts: (q) => ipcRenderer.invoke("products:search", q),
   getOffers: (productId) => ipcRenderer.invoke("products:offers", productId),
+  getProductRoi: (productId) => ipcRenderer.invoke("products:roi", productId),
   getPreorders: (sealedTypes = []) => ipcRenderer.invoke("preorders:snapshot", sealedTypes),
   onPreorder: (callback) => {
     const handler = (_event, payload) => callback(payload);

@@ -13,6 +13,7 @@ export type DesktopApi = {
   }>;
   searchProducts: (q: string) => Promise<{ products: unknown[] }>;
   getOffers: (productId: string) => Promise<unknown>;
+  getProductRoi: (productId: string) => Promise<unknown>;
   getPreorders: (sealedTypes?: SealedTypeId[]) => Promise<unknown>;
   onPreorder: (callback: (payload: unknown) => void) => () => void;
   openExternal: (url: string) => Promise<boolean>;

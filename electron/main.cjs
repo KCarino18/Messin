@@ -47,6 +47,7 @@ function registerIpc() {
   );
   ipcMain.handle("products:search", async (_e, q) => backend.searchProducts(q));
   ipcMain.handle("products:offers", async (_e, productId) => backend.getOffers(productId));
+  ipcMain.handle("products:roi", async (_e, productId) => backend.getProductRoi(productId));
   ipcMain.handle("preorders:snapshot", async (_e, sealedTypes = []) =>
     backend.getPreorderSnapshot(undefined, sealedTypes),
   );

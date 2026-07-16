@@ -3,6 +3,7 @@
 import { useDeferredValue, useEffect, useState, useTransition } from "react";
 import { formatUsd } from "@/lib/money";
 import { desktop, openProductLink } from "@/lib/desktopClient";
+import { RoiPanel, type ProductRoiView } from "@/components/RoiPanel";
 
 type Product = {
   id: string;
@@ -31,6 +32,8 @@ export function ProductSearch() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [mode, setMode] = useState<string>("demo");
+  const [roi, setRoi] = useState<ProductRoiView | null>(null);
+  const [roiLoading, setRoiLoading] = useState(false);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -48,13 +51,26 @@ export function ProductSearch() {
 
   async function selectProduct(id: string) {
     setSelectedId(id);
-    const data = (await desktop().getOffers(id)) as {
-      offers: Offer[];
-      mode: string;
-    } | null;
-    if (!data) return;
-    setOffers(data.offers);
-    setMode(data.mode);
+    setRoi(null);
+    setRoiLoading(true);
+    try {
+      const [offerData, roiData] = await Promise.all([
+        desktop().getOffers(id) as Promise<{
+          offers: Offer[];
+          mode: string;
+        } | null>,
+        desktop().getProductRoi(id) as Promise<ProductRoiView | null>,
+      ]);
+      if (offerData) {
+        setOffers(offerData.offers);
+        setMode(offerData.mode);
+      } else {
+        setOffers([]);
+      }
+      setRoi(roiData);
+    } finally {
+      setRoiLoading(false);
+    }
   }
 
   return (
@@ -66,7 +82,7 @@ export function ProductSearch() {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="e.g. Foundations Bundle, MH3 Play Booster Box"
+          placeholder="e.g. Marvel Collector Display, Hobbit Play Box"
           className="rounded-md border border-[var(--line)] bg-[var(--mist)] px-3 py-2.5 text-[var(--parchment)] outline-none placeholder:text-[var(--parchment)]/35 focus:border-[var(--brass-400)]/70"
         />
       </label>
@@ -88,12 +104,14 @@ export function ProductSearch() {
             >
               <span className="font-medium">{p.name}</span>
               <span className="ml-2 text-[var(--parchment)]/45">
-                MSRP {formatUsd(p.msrpCents)}
+                {p.setName} · MSRP {formatUsd(p.msrpCents)}
               </span>
             </button>
           </li>
         ))}
       </ul>
+
+      {(roiLoading || roi) && <RoiPanel data={roi} loading={roiLoading} />}
 
       {offers.length > 0 && (
         <div className="space-y-2 border-t border-[var(--line)] pt-4">

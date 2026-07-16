@@ -28,6 +28,7 @@ import {
   type SealedTypeId,
 } from "../../src/lib/sealedTypes";
 import type { ProductSeed } from "../../src/lib/retailers/types";
+import { buildProductRoiFromCatalog } from "../../src/lib/roi/service";
 
 let prisma: PrismaClient | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -550,6 +551,30 @@ export async function getOffers(productId: string) {
     best: visible[0] ? enrichOffer(visible[0]) : null,
     mode: visible.some((o) => o.isDemo) ? "demo" : "live",
   };
+}
+
+/** Buy-price vs simulated singles EV / break-even chance for a sealed SKU. */
+export async function getProductRoi(productId: string) {
+  const offers = await refreshOffers(productId, { deep: true });
+  const product = await db().product.findUnique({ where: { id: productId } });
+  if (!product) return null;
+
+  const usable = offers
+    .filter((o) => !o.rejected && (o.inStock || o.isPreorder))
+    .sort((a, b) => a.totalCents - b.totalCents);
+  const best = usable[0];
+  const buyPriceCents = best?.totalCents ?? 0;
+  const itemPriceCents = best?.itemPriceCents ?? buyPriceCents;
+  const buyLabel = best
+    ? `${RETAILER_BY_ID[best.retailerId as RetailerId]?.name ?? best.retailerId}`
+    : "no live listing";
+
+  return buildProductRoiFromCatalog(
+    productId,
+    buyPriceCents,
+    buyLabel,
+    itemPriceCents,
+  );
 }
 
 function radarTargets() {

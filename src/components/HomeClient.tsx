@@ -93,8 +93,9 @@ export function HomeClient({ initialBudgetCents }: { initialBudgetCents: number 
               Find the cheapest reputable buy
             </h2>
             <p className="mt-2 max-w-2xl text-sm text-[var(--parchment)]/60">
-              Penny + huge-shipping listings are rejected. Marketplace sellers must
-              clear reputation filters; Amazon/Walmart third-party offers are ignored.
+              Select a sealed product for live retailer prices plus set ROI — buy
+              cost vs estimated chance of getting your money back after cracking and
+              selling the singles.
             </p>
             <div className="mt-5 max-w-2xl">
               <ProductSearch />
