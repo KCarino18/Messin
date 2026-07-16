@@ -6,11 +6,13 @@ import {
   preorderCatalog,
   productSearchText,
 } from "../src/lib/catalog/products";
-import { buildDemoOffers } from "../src/lib/retailers/demoOffers";
+import { fetchOffersForProduct } from "../src/lib/retailers/adapters";
 import { scoreOffer } from "../src/lib/retailers/scorer";
+import {
+  estimateTcgShippingCents,
+  fetchTcgPlayerPriceInGroup,
+} from "../src/lib/retailers/tcgcsv";
 import { estimateTaxCents } from "../src/lib/money";
-import { retailerProductSearchUrl } from "../src/lib/retailers/urls";
-import type { RetailerId } from "../src/lib/retailers/allowlist";
 import path from "node:path";
 
 const raw = process.env.DATABASE_URL ?? "file:./prisma/dev.db";
@@ -29,6 +31,7 @@ async function main() {
   await prisma.budget.deleteMany();
   await prisma.watcherState.deleteMany();
 
+  let liveCount = 0;
   for (const p of SEALED_CATALOG) {
     await prisma.product.create({
       data: {
@@ -43,7 +46,9 @@ async function main() {
       },
     });
 
-    const scored = buildDemoOffers(p).map((o) => scoreOffer(o, p.msrpCents));
+    const { offers, mode } = await fetchOffersForProduct(p);
+    if (mode === "live") liveCount += 1;
+    const scored = offers.map((o) => scoreOffer(o, p.msrpCents));
     await prisma.offer.createMany({
       data: scored.map((o) => ({
         productId: p.id,
@@ -56,7 +61,7 @@ async function main() {
         url: o.url,
         inStock: o.inStock,
         isPreorder: o.isPreorder,
-        isDemo: true,
+        isDemo: mode === "demo" || o.isDemo,
         rejected: o.rejected,
         rejectReason: o.rejectReason,
       })),
@@ -69,19 +74,30 @@ async function main() {
 
   const now = Date.now();
   const radar = preorderCatalog();
-  const retailers: RetailerId[] = [
-    "gamenerdz",
-    "card_kingdom",
-    "amazon",
-    "target",
-    "starcitygames",
-  ];
 
   for (const [index, seed] of radar.slice(0, 6).entries()) {
-    const retailerId = retailers[index % retailers.length];
-    const shippingCents =
-      retailerId === "amazon" || retailerId === "target" ? 0 : 299;
-    const taxCents = estimateTaxCents(seed.msrpCents, shippingCents);
+    let itemPriceCents = seed.msrpCents;
+    let shippingCents = 299;
+    let productUrl = `https://www.tcgplayer.com/product/${seed.tcgplayerProductId}`;
+    let isDemo = true;
+    if (seed.tcgplayerGroupId && seed.tcgplayerProductId) {
+      try {
+        const price = await fetchTcgPlayerPriceInGroup(
+          seed.tcgplayerGroupId,
+          seed.tcgplayerProductId,
+        );
+        const item = price?.lowPriceCents ?? price?.marketPriceCents;
+        if (price && item != null && item > 0) {
+          itemPriceCents = item;
+          shippingCents = estimateTcgShippingCents(item);
+          productUrl = price.url;
+          isDemo = false;
+        }
+      } catch {
+        // keep MSRP fallback
+      }
+    }
+    const taxCents = estimateTaxCents(itemPriceCents, shippingCents);
     await prisma.preorderEvent.create({
       data: {
         productId: seed.id,
@@ -89,16 +105,16 @@ async function main() {
         sealedType: seed.sealedType,
         setName: seed.setName,
         releaseDate: seed.releaseDate,
-        retailerId,
-        priceCents: seed.msrpCents,
+        retailerId: "tcgplayer",
+        priceCents: itemPriceCents,
         shippingCents,
         taxCents,
-        totalCents: seed.msrpCents + shippingCents + taxCents,
+        totalCents: itemPriceCents + shippingCents + taxCents,
         msrpCents: seed.msrpCents,
-        isMsrp: true,
-        url: retailerProductSearchUrl(retailerId, seed.name),
+        isMsrp: itemPriceCents <= seed.msrpCents,
+        url: productUrl,
         eventType: "went_live",
-        isDemo: true,
+        isDemo,
         createdAt: new Date(now - (6 + index * 5) * 60_000),
       },
     });
@@ -108,14 +124,14 @@ async function main() {
     data: {
       id: "preorder",
       status: "watching",
-      message: "Seeded — new & unreleased sealed only",
+      message: "Seeded — TCGPlayer market prices",
       lastPolledAt: new Date(now - 15_000),
       nextPollAt: new Date(now + 45_000),
     },
   });
 
   console.log(
-    `Seeded ${SEALED_CATALOG.length} sealed products; radar eligible: ${radar.length}`,
+    `Seeded ${SEALED_CATALOG.length} sealed products (${liveCount} live-priced); radar eligible: ${radar.length}`,
   );
 }
 

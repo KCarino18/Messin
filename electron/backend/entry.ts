@@ -4,15 +4,24 @@ import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "../../src/generated/prisma/client";
 import {
   SEALED_CATALOG,
+  catalogById,
   preorderCatalog,
   productSearchText,
 } from "../../src/lib/catalog/products";
 import { RETAILER_ALLOWLIST, RETAILER_BY_ID } from "../../src/lib/retailers/allowlist";
 import { fetchOffersForProduct } from "../../src/lib/retailers/adapters";
 import { dealScore, scoreOffer } from "../../src/lib/retailers/scorer";
+import {
+  estimateTcgShippingCents,
+  fetchTcgPlayerPriceInGroup,
+} from "../../src/lib/retailers/tcgcsv";
 import { estimateTaxCents } from "../../src/lib/money";
 import { retailerProductSearchUrl } from "../../src/lib/retailers/urls";
-import { releaseBucket, type SealedTypeId } from "../../src/lib/sealedTypes";
+import {
+  normalizeSealedType,
+  releaseBucket,
+  type SealedTypeId,
+} from "../../src/lib/sealedTypes";
 import type { ProductSeed } from "../../src/lib/retailers/types";
 import type { RetailerId } from "../../src/lib/retailers/allowlist";
 
@@ -65,8 +74,95 @@ async function ensureColumn(
   existing.add(column);
 }
 
+async function tableExists(table: string): Promise<boolean> {
+  const rows = await db().$queryRawUnsafe<Array<{ name: string }>>(
+    `SELECT name FROM sqlite_master WHERE type='table' AND name='${table}'`,
+  );
+  return rows.length > 0;
+}
+
+async function bootstrapSchemaIfNeeded() {
+  if (await tableExists("Product")) return;
+
+  const statements = [
+    `CREATE TABLE "Product" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "name" TEXT NOT NULL,
+      "setName" TEXT NOT NULL,
+      "category" TEXT NOT NULL,
+      "sealedType" TEXT NOT NULL DEFAULT 'play_booster_box',
+      "releaseDate" TEXT NOT NULL DEFAULT '2020-01-01',
+      "msrpCents" INTEGER NOT NULL,
+      "imageUrl" TEXT,
+      "searchText" TEXT NOT NULL,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL
+    )`,
+    `CREATE TABLE "Offer" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "productId" TEXT NOT NULL,
+      "retailerId" TEXT NOT NULL,
+      "sellerName" TEXT NOT NULL,
+      "itemPriceCents" INTEGER NOT NULL,
+      "shippingCents" INTEGER NOT NULL,
+      "taxCents" INTEGER NOT NULL,
+      "totalCents" INTEGER NOT NULL,
+      "url" TEXT NOT NULL,
+      "inStock" BOOLEAN NOT NULL DEFAULT true,
+      "isPreorder" BOOLEAN NOT NULL DEFAULT false,
+      "isDemo" BOOLEAN NOT NULL DEFAULT false,
+      "rejected" BOOLEAN NOT NULL DEFAULT false,
+      "rejectReason" TEXT,
+      "observedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "Offer_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE TABLE "Budget" (
+      "id" TEXT NOT NULL PRIMARY KEY DEFAULT 'default',
+      "amountCents" INTEGER NOT NULL,
+      "updatedAt" DATETIME NOT NULL
+    )`,
+    `CREATE TABLE "PreorderEvent" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "productId" TEXT,
+      "productName" TEXT NOT NULL,
+      "sealedType" TEXT NOT NULL DEFAULT 'play_booster_box',
+      "setName" TEXT NOT NULL DEFAULT '',
+      "releaseDate" TEXT NOT NULL DEFAULT '2020-01-01',
+      "retailerId" TEXT NOT NULL,
+      "priceCents" INTEGER NOT NULL,
+      "shippingCents" INTEGER NOT NULL,
+      "taxCents" INTEGER NOT NULL,
+      "totalCents" INTEGER NOT NULL,
+      "msrpCents" INTEGER,
+      "isMsrp" BOOLEAN NOT NULL DEFAULT false,
+      "url" TEXT NOT NULL,
+      "eventType" TEXT NOT NULL,
+      "isDemo" BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "PreorderEvent_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+    )`,
+    `CREATE TABLE "WatcherState" (
+      "id" TEXT NOT NULL PRIMARY KEY DEFAULT 'preorder',
+      "lastPolledAt" DATETIME,
+      "nextPollAt" DATETIME,
+      "status" TEXT NOT NULL DEFAULT 'idle',
+      "message" TEXT,
+      "updatedAt" DATETIME NOT NULL
+    )`,
+    `CREATE INDEX "Offer_productId_totalCents_idx" ON "Offer"("productId", "totalCents")`,
+    `CREATE INDEX "Offer_retailerId_idx" ON "Offer"("retailerId")`,
+    `CREATE INDEX "PreorderEvent_createdAt_idx" ON "PreorderEvent"("createdAt")`,
+  ];
+
+  for (const sql of statements) {
+    await db().$executeRawUnsafe(sql);
+  }
+}
+
 /** Bring older install DBs up to the current Prisma schema without wiping userData. */
 async function ensureSchema() {
+  await bootstrapSchemaIfNeeded();
+
   const productCols = await tableColumns("Product");
   await ensureColumn(
     "Product",
@@ -110,6 +206,14 @@ async function ensureSchema() {
   await db().$executeRawUnsafe(
     `CREATE INDEX IF NOT EXISTS "PreorderEvent_sealedType_idx" ON "PreorderEvent"("sealedType")`,
   );
+
+  // Retired mistaken SKU name — collectors are Displays, not Boxes.
+  await db().$executeRawUnsafe(
+    `UPDATE "Product" SET "sealedType" = 'collector_booster_display' WHERE "sealedType" = 'collector_booster_box'`,
+  );
+  await db().$executeRawUnsafe(
+    `UPDATE "PreorderEvent" SET "sealedType" = 'collector_booster_display' WHERE "sealedType" = 'collector_booster_box'`,
+  );
 }
 
 function db() {
@@ -149,10 +253,8 @@ async function syncCatalog() {
         searchText: productSearchText(p),
       },
     });
-    const offerCount = await db().offer.count({ where: { productId: p.id } });
-    if (offerCount === 0) {
-      await refreshOffers(p.id);
-    }
+    // Always refresh so upgrades replace stale demo prices with live TCGPlayer data.
+    await refreshOffers(p.id);
   }
 }
 
@@ -167,14 +269,20 @@ async function ensureBudget() {
 async function refreshOffers(productId: string) {
   const product = await db().product.findUnique({ where: { id: productId } });
   if (!product) return [];
+  const catalog = catalogById(productId);
+  const sealedType =
+    normalizeSealedType(product.sealedType) ??
+    (product.sealedType as SealedTypeId);
   const seed: ProductSeed = {
     id: product.id,
     name: product.name,
     setName: product.setName,
     category: product.category as ProductSeed["category"],
-    sealedType: product.sealedType as SealedTypeId,
+    sealedType,
     releaseDate: product.releaseDate,
     msrpCents: product.msrpCents,
+    tcgplayerGroupId: catalog?.tcgplayerGroupId,
+    tcgplayerProductId: catalog?.tcgplayerProductId,
   };
   const { offers, mode } = await fetchOffersForProduct(seed);
   const scored = offers.map((o) => scoreOffer(o, product.msrpCents));
@@ -240,11 +348,18 @@ export async function setBudget(amountCents: number) {
 }
 
 export async function getDeals(budgetCents: number, sealedTypes: string[] = []) {
-  if (sealedTypes.length === 0) {
-    return { budgetCents, sealedTypes, deals: [], mode: "demo" as const };
+  const normalizedTypes = [
+    ...new Set(
+      sealedTypes
+        .map((t) => normalizeSealedType(t))
+        .filter((t): t is SealedTypeId => Boolean(t)),
+    ),
+  ];
+  if (normalizedTypes.length === 0) {
+    return { budgetCents, sealedTypes: normalizedTypes, deals: [], mode: "live" as const };
   }
 
-  const where = { sealedType: { in: sealedTypes } };
+  const where = { sealedType: { in: normalizedTypes } };
 
   let products = await db().product.findMany({
     where,
@@ -296,10 +411,35 @@ export async function getDeals(budgetCents: number, sealedTypes: string[] = []) 
 
   return {
     budgetCents,
-    sealedTypes,
+    sealedTypes: normalizedTypes,
     deals,
     mode: deals.some((d) => d.offer.isDemo) ? "demo" : "live",
   };
+}
+
+async function liveStreetPrice(seed: ProductSeed): Promise<{
+  itemPriceCents: number;
+  shippingCents: number;
+  url: string;
+  isDemo: boolean;
+} | null> {
+  if (!seed.tcgplayerGroupId || !seed.tcgplayerProductId) return null;
+  try {
+    const price = await fetchTcgPlayerPriceInGroup(
+      seed.tcgplayerGroupId,
+      seed.tcgplayerProductId,
+    );
+    const item = price?.lowPriceCents ?? price?.marketPriceCents;
+    if (!price || item == null || item <= 0) return null;
+    return {
+      itemPriceCents: item,
+      shippingCents: estimateTcgShippingCents(item),
+      url: price.url || `https://www.tcgplayer.com/product/${seed.tcgplayerProductId}`,
+      isDemo: false,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function searchProducts(q: string) {
@@ -339,60 +479,51 @@ export async function getOffers(productId: string) {
 }
 
 function radarTargets() {
-  return preorderCatalog().map((p) => ({
-    productId: p.id,
-    productName: p.name,
-    setName: p.setName,
-    sealedType: p.sealedType,
-    releaseDate: p.releaseDate,
-    msrpCents: p.msrpCents,
-    retailers: [
-      "card_kingdom",
-      "gamenerdz",
-      "amazon",
-      "target",
-      "coolstuffinc",
-      "starcitygames",
-      "tcgplayer",
-    ] as RetailerId[],
-  }));
+  return preorderCatalog();
 }
 
 async function resetPreorderEventsForRadar() {
-  const eligibleIds = new Set(preorderCatalog().map((p) => p.id));
+  const eligible = preorderCatalog();
+  const eligibleIds = new Set(eligible.map((p) => p.id));
   await db().preorderEvent.deleteMany({
     where: {
-      OR: [{ productId: null }, { productId: { notIn: [...eligibleIds] } }],
+      OR: [
+        { productId: null },
+        { productId: { notIn: [...eligibleIds] } },
+        { isDemo: true },
+      ],
     },
   });
 
   if ((await db().preorderEvent.count()) > 0) return;
 
   const now = Date.now();
-  const seeds = radarTargets().slice(0, 4);
   let i = 0;
-  for (const seed of seeds) {
-    const retailerId = seed.retailers[i % seed.retailers.length];
-    const shippingCents =
-      retailerId === "amazon" || retailerId === "target" || retailerId === "walmart" ? 0 : 299;
-    const taxCents = estimateTaxCents(seed.msrpCents, shippingCents);
+  for (const seed of eligible.slice(0, 6)) {
+    const live = await liveStreetPrice(seed);
+    const retailerId: RetailerId = "tcgplayer";
+    const itemPriceCents = live?.itemPriceCents ?? seed.msrpCents;
+    const shippingCents = live?.shippingCents ?? 299;
+    const taxCents = estimateTaxCents(itemPriceCents, shippingCents);
     await db().preorderEvent.create({
       data: {
-        productId: seed.productId,
-        productName: seed.productName,
+        productId: seed.id,
+        productName: seed.name,
         sealedType: seed.sealedType,
         setName: seed.setName,
         releaseDate: seed.releaseDate,
         retailerId,
-        priceCents: seed.msrpCents,
+        priceCents: itemPriceCents,
         shippingCents,
         taxCents,
-        totalCents: seed.msrpCents + shippingCents + taxCents,
+        totalCents: itemPriceCents + shippingCents + taxCents,
         msrpCents: seed.msrpCents,
-        isMsrp: true,
-        url: retailerProductSearchUrl(retailerId, seed.productName),
+        isMsrp: itemPriceCents <= seed.msrpCents,
+        url:
+          live?.url ??
+          retailerProductSearchUrl(retailerId, seed.name),
         eventType: "went_live",
-        isDemo: true,
+        isDemo: live ? false : true,
         createdAt: new Date(now - (8 + i * 7) * 60_000),
       },
     });
@@ -408,19 +539,18 @@ async function pollPreorders(pollMs: number) {
   const now = new Date();
   const next = new Date(now.getTime() + pollMs);
   const target = targets[tick % targets.length];
-  const retailerId = target.retailers[tick % target.retailers.length];
-  const atMsrp = tick % 3 !== 0;
-  const itemPriceCents = atMsrp
-    ? target.msrpCents
-    : Math.round(target.msrpCents * (1.05 + (tick % 5) * 0.02));
-  const shippingCents =
-    retailerId === "amazon" || retailerId === "target" || retailerId === "walmart" ? 0 : 399;
+  const live = await liveStreetPrice(target);
+  const retailerId: RetailerId = "tcgplayer";
+  const itemPriceCents = live?.itemPriceCents ?? target.msrpCents;
+  const shippingCents = live?.shippingCents ?? 399;
   const taxCents = estimateTaxCents(itemPriceCents, shippingCents);
   const totalCents = itemPriceCents + shippingCents + taxCents;
-  const productUrl = retailerProductSearchUrl(retailerId, target.productName);
+  const productUrl =
+    live?.url ?? retailerProductSearchUrl(retailerId, target.name);
+  const isDemo = !live;
 
   const existing = await db().preorderEvent.findFirst({
-    where: { productId: target.productId, retailerId },
+    where: { productId: target.id, retailerId },
     orderBy: { createdAt: "desc" },
   });
 
@@ -432,8 +562,8 @@ async function pollPreorders(pollMs: number) {
 
   const event = await db().preorderEvent.create({
     data: {
-      productId: target.productId,
-      productName: target.productName,
+      productId: target.id,
+      productName: target.name,
       sealedType: target.sealedType,
       setName: target.setName,
       releaseDate: target.releaseDate,
@@ -446,7 +576,7 @@ async function pollPreorders(pollMs: number) {
       isMsrp: itemPriceCents <= target.msrpCents,
       url: productUrl,
       eventType,
-      isDemo: true,
+      isDemo,
     },
   });
 
@@ -506,12 +636,19 @@ export async function getPreorderSnapshot(pollMs = 60_000, sealedTypes: string[]
   });
   const watcher = await db().watcherState.findUnique({ where: { id: "preorder" } });
   const eligibleIds = preorderCatalog().map((p) => p.id);
+  const normalizedTypes = [
+    ...new Set(
+      sealedTypes
+        .map((t) => normalizeSealedType(t))
+        .filter((t): t is SealedTypeId => Boolean(t)),
+    ),
+  ];
 
   const events = await db().preorderEvent.findMany({
     where: {
       productId: { in: eligibleIds },
       eventType: { in: ["went_live", "price_change", "live"] },
-      ...(sealedTypes.length > 0 ? { sealedType: { in: sealedTypes } } : {}),
+      ...(normalizedTypes.length > 0 ? { sealedType: { in: normalizedTypes } } : {}),
     },
     orderBy: { createdAt: "desc" },
     take: 40,
@@ -519,7 +656,7 @@ export async function getPreorderSnapshot(pollMs = 60_000, sealedTypes: string[]
 
   return {
     pollMs,
-    sealedTypes,
+    sealedTypes: normalizedTypes,
     watcher: watcher
       ? {
           lastPolledAt: watcher.lastPolledAt?.toISOString() ?? null,

@@ -36,6 +36,11 @@ export type ProductSeed = {
   sealedType: SealedTypeId;
   /** ISO date YYYY-MM-DD (street date). */
   releaseDate: string;
+  /** Official Wizards MSRP (not street / TCGPlayer market). */
   msrpCents: number;
   imageUrl?: string;
+  /** TCGPlayer set/group id for tcgcsv price lookup. */
+  tcgplayerGroupId?: number;
+  /** TCGPlayer product id for sealed SKU market/low prices. */
+  tcgplayerProductId?: number;
 };

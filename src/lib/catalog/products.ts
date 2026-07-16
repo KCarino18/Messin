@@ -3,9 +3,9 @@ import { isPreorderRadarEligible } from "@/lib/sealedTypes";
 import type { ProductSeed } from "@/lib/retailers/types";
 
 /**
- * Catalog tuned for ~July 2026:
- * - Budget deals: currently available sealed
- * - Preorder radar: just-released (Marvel Super Heroes, Jun 26) + unreleased upcoming sets
+ * Catalog tuned for ~July 2026.
+ * Prices come from TCGPlayer (via tcgcsv) using tcgplayerProductId + groupId.
+ * msrpCents is official Wizards MSRP for deal scoring — not street price.
  */
 export const SEALED_CATALOG: ProductSeed[] = [
   // —— Just released / still hot ——
@@ -17,15 +17,8 @@ export const SEALED_CATALOG: ProductSeed[] = [
     sealedType: "play_booster_box",
     releaseDate: "2026-06-26",
     msrpCents: cents(143.76),
-  },
-  {
-    id: "msh-collector-booster-box",
-    name: "Marvel Super Heroes Collector Booster Box",
-    setName: "Marvel Super Heroes",
-    category: "box",
-    sealedType: "collector_booster_box",
-    releaseDate: "2026-06-26",
-    msrpCents: cents(287.76),
+    tcgplayerGroupId: 24553,
+    tcgplayerProductId: 675603,
   },
   {
     id: "msh-collector-booster-display",
@@ -34,7 +27,9 @@ export const SEALED_CATALOG: ProductSeed[] = [
     category: "box",
     sealedType: "collector_booster_display",
     releaseDate: "2026-06-26",
-    msrpCents: cents(287.76),
+    msrpCents: cents(299.88),
+    tcgplayerGroupId: 24553,
+    tcgplayerProductId: 675606,
   },
   {
     id: "msh-bundle",
@@ -44,6 +39,8 @@ export const SEALED_CATALOG: ProductSeed[] = [
     sealedType: "bundle",
     releaseDate: "2026-06-26",
     msrpCents: cents(49.99),
+    tcgplayerGroupId: 24553,
+    tcgplayerProductId: 675615,
   },
 
   // —— Upcoming (preorder) ——
@@ -55,15 +52,8 @@ export const SEALED_CATALOG: ProductSeed[] = [
     sealedType: "play_booster_box",
     releaseDate: "2026-08-14",
     msrpCents: cents(143.76),
-  },
-  {
-    id: "hobbit-collector-booster-box",
-    name: "The Hobbit Collector Booster Box",
-    setName: "The Hobbit",
-    category: "box",
-    sealedType: "collector_booster_box",
-    releaseDate: "2026-08-14",
-    msrpCents: cents(287.76),
+    tcgplayerGroupId: 24683,
+    tcgplayerProductId: 692960,
   },
   {
     id: "hobbit-collector-booster-display",
@@ -72,7 +62,9 @@ export const SEALED_CATALOG: ProductSeed[] = [
     category: "box",
     sealedType: "collector_booster_display",
     releaseDate: "2026-08-14",
-    msrpCents: cents(287.76),
+    msrpCents: cents(299.88),
+    tcgplayerGroupId: 24683,
+    tcgplayerProductId: 692963,
   },
   {
     id: "hobbit-bundle",
@@ -82,6 +74,8 @@ export const SEALED_CATALOG: ProductSeed[] = [
     sealedType: "bundle",
     releaseDate: "2026-08-14",
     msrpCents: cents(49.99),
+    tcgplayerGroupId: 24683,
+    tcgplayerProductId: 692966,
   },
   {
     id: "reality-fracture-play-booster-box",
@@ -91,15 +85,19 @@ export const SEALED_CATALOG: ProductSeed[] = [
     sealedType: "play_booster_box",
     releaseDate: "2026-10-02",
     msrpCents: cents(143.76),
+    tcgplayerGroupId: 24684,
+    tcgplayerProductId: 692980,
   },
   {
-    id: "reality-fracture-collector-booster-box",
-    name: "Reality Fracture Collector Booster Box",
+    id: "reality-fracture-collector-booster-display",
+    name: "Reality Fracture Collector Booster Display",
     setName: "Reality Fracture",
     category: "box",
-    sealedType: "collector_booster_box",
+    sealedType: "collector_booster_display",
     releaseDate: "2026-10-02",
-    msrpCents: cents(287.76),
+    msrpCents: cents(299.88),
+    tcgplayerGroupId: 24684,
+    tcgplayerProductId: 692983,
   },
   {
     id: "star-trek-play-booster-box",
@@ -109,6 +107,8 @@ export const SEALED_CATALOG: ProductSeed[] = [
     sealedType: "play_booster_box",
     releaseDate: "2026-11-13",
     msrpCents: cents(143.76),
+    tcgplayerGroupId: 24766,
+    tcgplayerProductId: 706138,
   },
   {
     id: "star-trek-collector-booster-display",
@@ -117,7 +117,9 @@ export const SEALED_CATALOG: ProductSeed[] = [
     category: "box",
     sealedType: "collector_booster_display",
     releaseDate: "2026-11-13",
-    msrpCents: cents(287.76),
+    msrpCents: cents(299.88),
+    tcgplayerGroupId: 24766,
+    tcgplayerProductId: 706142,
   },
 
   // —— Released catalog for budget deals ——
@@ -129,15 +131,19 @@ export const SEALED_CATALOG: ProductSeed[] = [
     sealedType: "play_booster_box",
     releaseDate: "2026-04-24",
     msrpCents: cents(143.76),
+    tcgplayerGroupId: 24601,
+    tcgplayerProductId: 675555,
   },
   {
-    id: "strixhaven-secrets-collector-booster-box",
-    name: "Secrets of Strixhaven Collector Booster Box",
+    id: "strixhaven-secrets-collector-booster-display",
+    name: "Secrets of Strixhaven Collector Booster Display",
     setName: "Secrets of Strixhaven",
     category: "box",
-    sealedType: "collector_booster_box",
+    sealedType: "collector_booster_display",
     releaseDate: "2026-04-24",
-    msrpCents: cents(287.76),
+    msrpCents: cents(299.88),
+    tcgplayerGroupId: 24601,
+    tcgplayerProductId: 675558,
   },
   {
     id: "tmnt-play-booster-box",
@@ -147,6 +153,8 @@ export const SEALED_CATALOG: ProductSeed[] = [
     sealedType: "play_booster_box",
     releaseDate: "2026-03-06",
     msrpCents: cents(143.76),
+    tcgplayerGroupId: 24495,
+    tcgplayerProductId: 657849,
   },
   {
     id: "tmnt-collector-booster-display",
@@ -155,7 +163,9 @@ export const SEALED_CATALOG: ProductSeed[] = [
     category: "box",
     sealedType: "collector_booster_display",
     releaseDate: "2026-03-06",
-    msrpCents: cents(287.76),
+    msrpCents: cents(299.88),
+    tcgplayerGroupId: 24495,
+    tcgplayerProductId: 657852,
   },
   {
     id: "lorwyn-eclipsed-play-booster-box",
@@ -165,24 +175,19 @@ export const SEALED_CATALOG: ProductSeed[] = [
     sealedType: "play_booster_box",
     releaseDate: "2026-01-23",
     msrpCents: cents(143.76),
+    tcgplayerGroupId: 24463,
+    tcgplayerProductId: 656312,
   },
   {
-    id: "lorwyn-eclipsed-set-booster-box",
-    name: "Lorwyn Eclipsed Set Booster Box",
+    id: "lorwyn-eclipsed-collector-booster-display",
+    name: "Lorwyn Eclipsed Collector Booster Display",
     setName: "Lorwyn Eclipsed",
     category: "box",
-    sealedType: "set_booster_box",
+    sealedType: "collector_booster_display",
     releaseDate: "2026-01-23",
-    msrpCents: cents(143.76),
-  },
-  {
-    id: "lorwyn-eclipsed-collector-booster-box",
-    name: "Lorwyn Eclipsed Collector Booster Box",
-    setName: "Lorwyn Eclipsed",
-    category: "box",
-    sealedType: "collector_booster_box",
-    releaseDate: "2026-01-23",
-    msrpCents: cents(287.76),
+    msrpCents: cents(299.88),
+    tcgplayerGroupId: 24463,
+    tcgplayerProductId: 656322,
   },
   {
     id: "fdn-play-booster-box",
@@ -192,6 +197,19 @@ export const SEALED_CATALOG: ProductSeed[] = [
     sealedType: "play_booster_box",
     releaseDate: "2024-11-15",
     msrpCents: cents(143.76),
+    tcgplayerGroupId: 23556,
+    tcgplayerProductId: 562118,
+  },
+  {
+    id: "fdn-collector-booster-display",
+    name: "Foundations Collector Booster Display",
+    setName: "Foundations",
+    category: "box",
+    sealedType: "collector_booster_display",
+    releaseDate: "2024-11-15",
+    msrpCents: cents(299.88),
+    tcgplayerGroupId: 23556,
+    tcgplayerProductId: 562122,
   },
   {
     id: "fdn-bundle",
@@ -201,6 +219,8 @@ export const SEALED_CATALOG: ProductSeed[] = [
     sealedType: "bundle",
     releaseDate: "2024-11-15",
     msrpCents: cents(44.99),
+    tcgplayerGroupId: 23556,
+    tcgplayerProductId: 562125,
   },
   {
     id: "mh3-play-booster-box",
@@ -210,15 +230,19 @@ export const SEALED_CATALOG: ProductSeed[] = [
     sealedType: "play_booster_box",
     releaseDate: "2024-06-14",
     msrpCents: cents(159.99),
+    tcgplayerGroupId: 23444,
+    tcgplayerProductId: 541164,
   },
   {
-    id: "mh3-collector-booster-box",
-    name: "Modern Horizons 3 Collector Booster Box",
+    id: "mh3-collector-booster-display",
+    name: "Modern Horizons 3 Collector Booster Display",
     setName: "Modern Horizons 3",
     category: "box",
-    sealedType: "collector_booster_box",
+    sealedType: "collector_booster_display",
     releaseDate: "2024-06-14",
     msrpCents: cents(299.99),
+    tcgplayerGroupId: 23444,
+    tcgplayerProductId: 541179,
   },
   {
     id: "blb-commander-deck-display",
@@ -228,15 +252,30 @@ export const SEALED_CATALOG: ProductSeed[] = [
     sealedType: "commander_deck_display",
     releaseDate: "2024-08-02",
     msrpCents: cents(179.96),
+    tcgplayerGroupId: 23448,
+    tcgplayerProductId: 541250,
   },
   {
     id: "dsk-play-booster-box",
     name: "Duskmourn Play Booster Box",
-    setName: "Duskmourn",
+    setName: "Duskmourn: House of Horror",
     category: "box",
     sealedType: "play_booster_box",
     releaseDate: "2024-09-27",
     msrpCents: cents(143.76),
+    tcgplayerGroupId: 23550,
+    tcgplayerProductId: 557241,
+  },
+  {
+    id: "dsk-collector-booster-display",
+    name: "Duskmourn Collector Booster Display",
+    setName: "Duskmourn: House of Horror",
+    category: "box",
+    sealedType: "collector_booster_display",
+    releaseDate: "2024-09-27",
+    msrpCents: cents(299.88),
+    tcgplayerGroupId: 23550,
+    tcgplayerProductId: 557244,
   },
 ];
 
@@ -246,4 +285,8 @@ export function productSearchText(p: ProductSeed): string {
 
 export function preorderCatalog(now = new Date()): ProductSeed[] {
   return SEALED_CATALOG.filter((p) => isPreorderRadarEligible(p.releaseDate, now));
+}
+
+export function catalogById(id: string): ProductSeed | undefined {
+  return SEALED_CATALOG.find((p) => p.id === id);
 }

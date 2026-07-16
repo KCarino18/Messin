@@ -101,7 +101,11 @@ export function ProductSearch() {
             <h3 className="font-display text-lg text-[var(--brass-200)]">
               Cheapest reputable total
             </h3>
-            {mode === "demo" && (
+            {mode === "live" ? (
+              <span className="text-[10px] uppercase tracking-widest text-[var(--emerald-300)]/90">
+                Live · TCGPlayer
+              </span>
+            ) : (
               <span className="text-[10px] uppercase tracking-widest text-[var(--brass-300)]/80">
                 Demo
               </span>

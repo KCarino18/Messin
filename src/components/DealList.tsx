@@ -56,7 +56,11 @@ export function DealList({ deals, budgetCents, loading, mode }: Props) {
         <p className="text-sm text-[var(--parchment)]/65">
           Ranked by deal quality vs MSRP · sorted using <em>total landed cost</em>
         </p>
-        {mode === "demo" && (
+        {mode === "live" ? (
+          <span className="rounded border border-[var(--emerald-400)]/40 px-2 py-0.5 text-[10px] uppercase tracking-widest text-[var(--emerald-300)]">
+            Live · TCGPlayer
+          </span>
+        ) : (
           <span className="rounded border border-[var(--brass-400)]/40 px-2 py-0.5 text-[10px] uppercase tracking-widest text-[var(--brass-300)]">
             Demo prices
           </span>

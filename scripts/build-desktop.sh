@@ -11,7 +11,7 @@ npm ci
 
 echo "==> Preparing database + desktop bundles"
 export DATABASE_URL="${DATABASE_URL:-file:./prisma/dev.db}"
-printf 'DATABASE_URL=%s\nPREORDER_POLL_MS=60000\nTAX_RATE=0.08\nPRICE_MODE=demo\n' "$DATABASE_URL" > .env
+printf 'DATABASE_URL=%s\nPREORDER_POLL_MS=60000\nTAX_RATE=0.08\nPRICE_MODE=live\n' "$DATABASE_URL" > .env
 npx prisma generate
 npx prisma migrate deploy
 npm run db:seed

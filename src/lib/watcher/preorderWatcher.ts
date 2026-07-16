@@ -46,7 +46,7 @@ const PREORDER_TARGETS = [
   },
   {
     productId: "upcoming-edge-of-eternities-collector",
-    productName: "Edge of Eternities Collector Booster Box",
+    productName: "Edge of Eternities Collector Booster Display",
     msrpCents: 28776,
     retailers: ["coolstuffinc", "channel_fireball", "starcitygames"] as const,
   },
@@ -235,7 +235,7 @@ export async function seedInitialPreorders() {
     },
     {
       productId: "upcoming-edge-of-eternities-collector",
-      productName: "Edge of Eternities Collector Booster Box",
+      productName: "Edge of Eternities Collector Booster Display",
       retailerId: "card_kingdom",
       priceCents: 29999,
       shippingCents: 0,
