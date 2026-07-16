@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version tag (e.g. v0.2.0)"
+        description: "Release version tag (e.g. v0.3.0)"
         required: true
-        default: "v0.2.0"
+        default: "v0.3.0"
 
 permissions:
   contents: write
@@ -41,7 +41,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Build Windows exe
+      - name: Build Windows Setup.exe
         shell: bash
         run: |
           printf 'DATABASE_URL=file:./prisma/dev.db\nPREORDER_POLL_MS=60000\nTAX_RATE=0.08\nPRICE_MODE=demo\n' > .env
@@ -49,15 +49,12 @@ jobs:
           npx prisma generate
           npx prisma migrate deploy
           npm run db:seed
-          npm run build
-          DESKTOP_PLATFORM=win32 DESKTOP_ARCH=x64 node scripts/prepare-desktop.mjs
-          npx electron-builder --win portable nsis --x64 --publish never
+          node scripts/prepare-desktop.mjs
+          npx electron-builder --win nsis --x64 --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: |
-            dist-desktop/MTG-Budget-*-Windows.exe
-            dist-desktop/MTG-Budget-Setup-*.exe
+          path: dist-desktop/MTG-Budget-Setup-*.exe
 
   build-linux:
     needs: release-meta
@@ -77,8 +74,7 @@ jobs:
           npx prisma generate
           npx prisma migrate deploy
           npm run db:seed
-          npm run build
-          DESKTOP_PLATFORM=linux DESKTOP_ARCH=x64 node scripts/prepare-desktop.mjs
+          node scripts/prepare-desktop.mjs
           npx electron-builder --linux AppImage --x64 --publish never
       - uses: actions/upload-artifact@v4
         with:
@@ -102,9 +98,8 @@ jobs:
           npx prisma generate
           npx prisma migrate deploy
           npm run db:seed
-          npm run build
-          DESKTOP_PLATFORM=darwin DESKTOP_ARCH=$(node -p process.arch) node scripts/prepare-desktop.mjs
-          npx electron-builder --mac dmg --publish never
+          node scripts/prepare-desktop.mjs
+          npx electron-builder --mac dmg --arm64 --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: mac-installer
@@ -112,6 +107,7 @@ jobs:
 
   publish-release:
     needs: [release-meta, build-windows, build-linux, build-mac]
+    if: always() && needs.build-windows.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -131,17 +127,19 @@ jobs:
           draft: false
           generate_release_notes: true
           body: |
-            ## One-click download (no zip)
+            ## Install the desktop app
 
-            Download the file for your OS, then **double-click it**:
+            1. Download **MTG-Budget-Setup-*.exe** (Windows)
+            2. Double-click to install
+            3. Launch **MTG Budget** from the Start Menu or Desktop shortcut
 
-            | OS | File |
+            This is a real desktop application installed on your computer — not a website and not a zip of scripts.
+
+            | OS | Installer |
             | --- | --- |
-            | **Windows** | `MTG-Budget-*-Windows.exe` (portable) or `MTG-Budget-Setup-*.exe` |
-            | **macOS** | `MTG-Budget-*-macOS.dmg` |
+            | **Windows** | `MTG-Budget-Setup-*.exe` |
             | **Linux** | `MTG-Budget-*-Linux.AppImage` |
-
-            No unzipping. No Node.js install required.
+            | **macOS** | `MTG-Budget-*-macOS.dmg` (when available) |
           files: release-files/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

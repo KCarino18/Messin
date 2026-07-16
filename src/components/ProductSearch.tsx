@@ -2,6 +2,7 @@
 
 import { useDeferredValue, useEffect, useState, useTransition } from "react";
 import { formatUsd } from "@/lib/money";
+import { desktop, openProductLink } from "@/lib/desktopClient";
 
 type Product = {
   id: string;
@@ -33,24 +34,25 @@ export function ProductSearch() {
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    const controller = new AbortController();
+    let cancelled = false;
     startTransition(async () => {
-      const res = await fetch(
-        `/api/products/search?q=${encodeURIComponent(deferredQuery)}`,
-        { signal: controller.signal },
-      );
-      if (!res.ok) return;
-      const data = (await res.json()) as { products: Product[] };
-      setProducts(data.products);
+      const data = (await desktop().searchProducts(deferredQuery)) as {
+        products: Product[];
+      };
+      if (!cancelled) setProducts(data.products);
     });
-    return () => controller.abort();
+    return () => {
+      cancelled = true;
+    };
   }, [deferredQuery]);
 
   async function selectProduct(id: string) {
     setSelectedId(id);
-    const res = await fetch(`/api/products/${id}/offers`);
-    if (!res.ok) return;
-    const data = (await res.json()) as { offers: Offer[]; mode: string };
+    const data = (await desktop().getOffers(id)) as {
+      offers: Offer[];
+      mode: string;
+    } | null;
+    if (!data) return;
     setOffers(data.offers);
     setMode(data.mode);
   }
@@ -132,14 +134,13 @@ export function ProductSearch() {
                   <p className="font-display text-xl text-[var(--emerald-300)]">
                     {formatUsd(offer.totalCents)}
                   </p>
-                  <a
-                    href={offer.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => void openProductLink(offer.url)}
                     className="text-xs text-[var(--brass-300)] underline-offset-2 hover:underline"
                   >
                     Open listing
-                  </a>
+                  </button>
                 </div>
               </li>
             ))}

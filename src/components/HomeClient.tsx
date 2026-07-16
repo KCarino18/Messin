@@ -5,6 +5,7 @@ import { BudgetSetter } from "@/components/BudgetSetter";
 import { DealList, type Deal } from "@/components/DealList";
 import { ProductSearch } from "@/components/ProductSearch";
 import { PreorderRadar } from "@/components/PreorderRadar";
+import { desktop } from "@/lib/desktopClient";
 
 export function HomeClient({ initialBudgetCents }: { initialBudgetCents: number }) {
   const [budgetCents, setBudgetCents] = useState(initialBudgetCents);
@@ -15,9 +16,10 @@ export function HomeClient({ initialBudgetCents }: { initialBudgetCents: number 
 
   const loadDeals = useCallback((cents: number) => {
     startTransition(async () => {
-      const res = await fetch(`/api/deals?budget=${cents}`);
-      if (!res.ok) return;
-      const data = (await res.json()) as { deals: Deal[]; mode: string };
+      const data = (await desktop().getDeals(cents)) as {
+        deals: Deal[];
+        mode: string;
+      };
       setDeals(data.deals);
       setMode(data.mode);
     });

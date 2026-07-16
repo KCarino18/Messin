@@ -56,3 +56,6 @@ next-env.d.ts
 .desktop-resources/
 .cache/
 dist-desktop/
+electron/renderer/
+electron/backend.dist.cjs
+electron/backend.dist.cjs.map

@@ -1,42 +1,31 @@
 # MTG Budget
 
-[![Download for Windows](https://img.shields.io/badge/download-Windows_.exe-3d9b72?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/KCarino18/Messin/releases/download/v0.2.0/MTG-Budget-0.1.0-Windows.exe)
-[![Download Setup](https://img.shields.io/badge/download-Windows_Setup-d4a85a?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/KCarino18/Messin/releases/download/v0.2.0/MTG-Budget-Setup-0.1.0.exe)
-[![Download for Linux](https://img.shields.io/badge/download-Linux_.AppImage-62c095?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/KCarino18/Messin/releases/download/v0.2.0/MTG-Budget-0.1.0-Linux.AppImage)
+**Desktop app** for Magic: The Gathering sealed-product deals and preorder watching.
 
-Stylized sealed-product deal finder for Magic: The Gathering.
+[![Install for Windows](https://img.shields.io/badge/install-Windows_Setup.exe-3d9b72?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/KCarino18/Messin/releases/latest)
 
-Set a budget, get the best **factory-sealed** deals from a curated US retailer allowlist, look up the cheapest reputable **total price** (item + shipping + tax estimate), and keep a live **Preorder Radar** on the right that polls every **1 minute**.
+## Install (Windows)
 
-## One-click download
+1. Open the [latest release](https://github.com/KCarino18/Messin/releases/latest)
+2. Download **`MTG-Budget-Setup-*.exe`**
+3. Double-click the Setup file to install
+4. Launch **MTG Budget** from the Start Menu or Desktop shortcut
 
-**No zip. No Node install. Download → double-click.**
+That installs a real desktop application on your PC. No browser. No zip. No Node.js.
 
-| OS | Download |
-| --- | --- |
-| **Windows (portable)** | [MTG-Budget-0.1.0-Windows.exe](https://github.com/KCarino18/Messin/releases/download/v0.2.0/MTG-Budget-0.1.0-Windows.exe) |
-| **Windows (setup)** | [MTG-Budget-Setup-0.1.0.exe](https://github.com/KCarino18/Messin/releases/download/v0.2.0/MTG-Budget-Setup-0.1.0.exe) |
-| **Linux** | [MTG-Budget-0.1.0-Linux.AppImage](https://github.com/KCarino18/Messin/releases/download/v0.2.0/MTG-Budget-0.1.0-Linux.AppImage) |
+Linux AppImage and macOS DMG are also published on the same releases page when available.
 
-All releases: https://github.com/KCarino18/Messin/releases
+## What it does
 
-## Features
-
-- **Sealed only** — boosters, bundles, commander decks, boxes (no singles)
-- **Budget deals** — ranks products under your spend by deal quality vs MSRP
-- **Product lookup** — cheapest allowlisted US offer with item / ship / tax / total breakdown
-- **Anti-scam scoring** — rejects penny + huge-shipping, Amazon/Walmart 3P, low-rep TCGPlayer sellers
-- **Preorder Radar** — right rail polls allowlisted retailers every 60s via SSE
+- Set a budget and get the best **factory-sealed** deals
+- Look up sealed product and see the cheapest reputable US total price (item + shipping + tax)
+- Keep a live **Preorder Radar** watching allowlisted retailers every minute
 
 ## Allowlisted retailers
 
 Card Kingdom · CoolStuffInc · Channel Fireball · StarCityGames · GameNerdz · Amazon (sold/shipped by Amazon) · Target · Walmart (sold/shipped by Walmart) · TCGPlayer Marketplace (reputation-filtered)
 
-## Stack
-
-Next.js (App Router) · TypeScript · Tailwind CSS · Prisma · SQLite · Electron (desktop builds)
-
-## Develop from source
+## Develop the desktop app
 
 ```bash
 npm install
@@ -46,31 +35,14 @@ npm run db:seed
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+`npm run dev` opens the Electron desktop window.
 
-### Build desktop installers locally
+### Build installers
 
 ```bash
-npm run desktop:build:win     # Windows .exe
+npm run desktop:build:win     # Windows Setup.exe
 npm run desktop:build:linux   # Linux AppImage
-npm run desktop:build:mac     # macOS .dmg (macOS host required)
+npm run desktop:build:mac     # macOS .dmg
 ```
 
-Artifacts land in `dist-desktop/`.
-
-## Scripts
-
-| Command | Description |
-| --- | --- |
-| `npm run dev` | Start local web dev server |
-| `npm run build` | Production Next.js build |
-| `npm run db:seed` | Reseed sealed catalog + demo offers + preorder events |
-| `npm test` | Run total-price scorer checks |
-| `npm run desktop:build:win` | Build one-click Windows `.exe` |
-
-## Notes
-
-- `PRICE_MODE=demo` (default) uses deterministic demo prices from allowlisted retailer adapters so the UI works without live scrapers.
-- Set `PRICE_MODE=live` when live retailer adapters are implemented; empty live responses fall back to demo.
-- Tax estimate defaults to 8% (`TAX_RATE`) when a store does not publish tax.
-- Preorder poll interval is `PREORDER_POLL_MS=60000`.
+Artifacts are written to `dist-desktop/`.
