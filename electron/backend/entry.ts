@@ -38,11 +38,78 @@ export async function initBackend(options: {
   }
 
   prisma = createPrisma(dbPath);
+  // Packaged upgrades keep the old userData DB; apply missing columns before any ORM reads.
+  await ensureSchema();
   await syncCatalog();
   await ensureBudget();
   await resetPreorderEventsForRadar();
   startWatcher(pollMs);
   return { ok: true as const };
+}
+
+async function tableColumns(table: string): Promise<Set<string>> {
+  const rows = await db().$queryRawUnsafe<Array<{ name: string }>>(
+    `PRAGMA table_info("${table}")`,
+  );
+  return new Set(rows.map((row) => row.name));
+}
+
+async function ensureColumn(
+  table: string,
+  column: string,
+  ddl: string,
+  existing: Set<string>,
+) {
+  if (existing.has(column)) return;
+  await db().$executeRawUnsafe(`ALTER TABLE "${table}" ADD COLUMN ${ddl}`);
+  existing.add(column);
+}
+
+/** Bring older install DBs up to the current Prisma schema without wiping userData. */
+async function ensureSchema() {
+  const productCols = await tableColumns("Product");
+  await ensureColumn(
+    "Product",
+    "sealedType",
+    `"sealedType" TEXT NOT NULL DEFAULT 'play_booster_box'`,
+    productCols,
+  );
+  await ensureColumn(
+    "Product",
+    "releaseDate",
+    `"releaseDate" TEXT NOT NULL DEFAULT '2020-01-01'`,
+    productCols,
+  );
+
+  const preorderCols = await tableColumns("PreorderEvent");
+  await ensureColumn(
+    "PreorderEvent",
+    "sealedType",
+    `"sealedType" TEXT NOT NULL DEFAULT 'play_booster_box'`,
+    preorderCols,
+  );
+  await ensureColumn(
+    "PreorderEvent",
+    "setName",
+    `"setName" TEXT NOT NULL DEFAULT ''`,
+    preorderCols,
+  );
+  await ensureColumn(
+    "PreorderEvent",
+    "releaseDate",
+    `"releaseDate" TEXT NOT NULL DEFAULT '2020-01-01'`,
+    preorderCols,
+  );
+
+  await db().$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "Product_sealedType_idx" ON "Product"("sealedType")`,
+  );
+  await db().$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "Product_releaseDate_idx" ON "Product"("releaseDate")`,
+  );
+  await db().$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "PreorderEvent_sealedType_idx" ON "PreorderEvent"("sealedType")`,
+  );
 }
 
 function db() {
