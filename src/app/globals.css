@@ -1,0 +1,175 @@
+@import "tailwindcss";
+
+:root {
+  --ink-950: #0b1210;
+  --ink-900: #101a16;
+  --ink-800: #17241e;
+  --ink-700: #24362d;
+  --brass-400: #d4a85a;
+  --brass-300: #e2c07a;
+  --brass-200: #f0d9a4;
+  --emerald-400: #3d9b72;
+  --emerald-300: #62c095;
+  --danger-400: #d96b5c;
+  --parchment: #e8dcc4;
+  --mist: rgba(232, 220, 196, 0.08);
+  --line: rgba(212, 168, 90, 0.28);
+  --glow-brass: rgba(212, 168, 90, 0.18);
+
+  --background: var(--ink-950);
+  --foreground: var(--parchment);
+  --font-display: var(--font-cinzel);
+  --font-body: var(--font-manrope);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-cinzel), ui-serif, Georgia, serif;
+}
+
+.font-display {
+  font-family: var(--font-cinzel), ui-serif, Georgia, serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-body), system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 12% -10%, rgba(61, 155, 114, 0.16), transparent 55%),
+    radial-gradient(900px 500px at 90% 0%, rgba(212, 168, 90, 0.14), transparent 50%),
+    linear-gradient(165deg, #0b1210 0%, #13201a 45%, #0d1512 100%);
+  background-attachment: fixed;
+}
+
+body::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  opacity: 0.35;
+  background-image:
+    linear-gradient(rgba(232, 220, 196, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232, 220, 196, 0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+  z-index: 0;
+}
+
+.app-root {
+  position: relative;
+  z-index: 1;
+}
+
+.foil-text {
+  background: linear-gradient(120deg, var(--brass-200), var(--brass-400) 40%, var(--emerald-300) 70%, var(--brass-300));
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: foil-shift 8s ease-in-out infinite;
+}
+
+@keyframes foil-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes deal-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes radar-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(61, 155, 114, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgba(61, 155, 114, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(61, 155, 114, 0);
+  }
+}
+
+@keyframes live-flash {
+  0% {
+    background-color: rgba(61, 155, 114, 0.28);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.deal-row {
+  animation: deal-in 420ms ease both;
+}
+
+.deal-row:nth-child(1) {
+  animation-delay: 40ms;
+}
+.deal-row:nth-child(2) {
+  animation-delay: 90ms;
+}
+.deal-row:nth-child(3) {
+  animation-delay: 140ms;
+}
+.deal-row:nth-child(4) {
+  animation-delay: 190ms;
+}
+.deal-row:nth-child(5) {
+  animation-delay: 240ms;
+}
+
+.radar-live-dot {
+  animation: radar-pulse 1.8s ease-out infinite;
+}
+
+.preorder-flash {
+  animation: live-flash 1.2s ease-out;
+}
+
+.cta-foil {
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-foil::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(240, 217, 164, 0.35) 48%,
+    transparent 62%
+  );
+  transform: translateX(-120%);
+  transition: transform 0.6s ease;
+}
+
+.cta-foil:hover::after {
+  transform: translateX(120%);
+}
