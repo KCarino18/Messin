@@ -3,6 +3,7 @@ import { SEALED_CATALOG, productSearchText } from "@/lib/catalog/products";
 import { RETAILER_BY_ID } from "@/lib/retailers/allowlist";
 import { fetchOffersForProduct } from "@/lib/retailers/adapters";
 import { dealScore, scoreOffer } from "@/lib/retailers/scorer";
+import { buildProductRoiFromCatalog } from "@/lib/roi/service";
 import type { ProductSeed } from "@/lib/retailers/types";
 
 function toSeed(product: {
@@ -148,7 +149,7 @@ export async function getDealsUnderBudget(budgetCents: number) {
     });
   }
 
-  return products
+  const baseDeals = products
     .map((p) => {
       const best = p.offers[0];
       if (!best || best.totalCents > budgetCents) return null;
@@ -170,8 +171,34 @@ export async function getDealsUnderBudget(budgetCents: number) {
         savingsVsMsrpCents: Math.max(0, p.msrpCents - best.itemPriceCents),
       };
     })
-    .filter((d): d is NonNullable<typeof d> => Boolean(d))
-    .sort((a, b) => b.dealScore - a.dealScore || a.offer.totalCents - b.offer.totalCents);
+    .filter((d): d is NonNullable<typeof d> => Boolean(d));
+
+  return (
+    await Promise.all(
+      baseDeals.map(async (d) => {
+        const roiPayload = await buildProductRoiFromCatalog(
+          d.product.id,
+          d.offer.totalCents,
+          d.offer.retailerName,
+          d.offer.itemPriceCents,
+        );
+        return {
+          ...d,
+          roiPercent: roiPayload?.roi?.roiPercent ?? null,
+          breakEvenChancePercent: roiPayload?.roi?.breakEvenChancePercent ?? null,
+          expectedNetCents: roiPayload?.roi?.expectedNetCents ?? null,
+        };
+      }),
+    )
+  ).sort((a, b) => {
+    const aRoi = a.roiPercent ?? Number.NEGATIVE_INFINITY;
+    const bRoi = b.roiPercent ?? Number.NEGATIVE_INFINITY;
+    if (bRoi !== aRoi) return bRoi - aRoi;
+    const aChance = a.breakEvenChancePercent ?? -1;
+    const bChance = b.breakEvenChancePercent ?? -1;
+    if (bChance !== aChance) return bChance - aChance;
+    return b.dealScore - a.dealScore || a.offer.totalCents - b.offer.totalCents;
+  });
 }
 
 export async function ensureCatalogSeeded() {

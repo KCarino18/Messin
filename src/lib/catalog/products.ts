@@ -287,6 +287,13 @@ export function preorderCatalog(now = new Date()): ProductSeed[] {
   return SEALED_CATALOG.filter((p) => isPreorderRadarEligible(p.releaseDate, now));
 }
 
+/** Unique set names currently eligible for Preorder Radar (sorted). */
+export function preorderSetNames(now = new Date()): string[] {
+  return [...new Set(preorderCatalog(now).map((p) => p.setName))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+}
+
 export function catalogById(id: string): ProductSeed | undefined {
   return SEALED_CATALOG.find((p) => p.id === id);
 }

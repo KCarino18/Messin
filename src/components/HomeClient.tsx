@@ -76,8 +76,12 @@ export function HomeClient({ initialBudgetCents }: { initialBudgetCents: number 
         <main className="flex-1 space-y-12 px-6 pb-16 sm:px-10 lg:px-14">
           <section>
             <h2 className="font-display text-2xl text-[var(--brass-200)]">
-              Best sealed deals under budget
+              Best rip ROI under budget
             </h2>
+            <p className="mt-2 max-w-2xl text-sm text-[var(--parchment)]/60">
+              Ranked for cracking — highest expected singles ROI first, not just
+              cheapest vs MSRP.
+            </p>
             <div className="mt-5">
               <DealList
                 deals={deals}

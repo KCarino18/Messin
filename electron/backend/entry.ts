@@ -412,7 +412,7 @@ export async function getDeals(budgetCents: number, sealedTypes: string[] = []) 
     },
   });
 
-  const deals = products
+  const baseDeals = products
     .map((p) => {
       const best = p.offers[0];
       if (!best || best.totalCents > budgetCents) return null;
@@ -431,8 +431,35 @@ export async function getDeals(budgetCents: number, sealedTypes: string[] = []) 
         savingsVsMsrpCents: Math.max(0, p.msrpCents - best.itemPriceCents),
       };
     })
-    .filter((d): d is NonNullable<typeof d> => Boolean(d))
-    .sort((a, b) => b.dealScore - a.dealScore || a.offer.totalCents - b.offer.totalCents);
+    .filter((d): d is NonNullable<typeof d> => Boolean(d));
+
+  // Rip-focused ranking: attach EV ROI for each under-budget listing, then sort by it.
+  const deals = (
+    await Promise.all(
+      baseDeals.map(async (d) => {
+        const roiPayload = await buildProductRoiFromCatalog(
+          d.product.id,
+          d.offer.totalCents,
+          d.offer.retailerName,
+          d.offer.itemPriceCents,
+        );
+        return {
+          ...d,
+          roiPercent: roiPayload?.roi?.roiPercent ?? null,
+          breakEvenChancePercent: roiPayload?.roi?.breakEvenChancePercent ?? null,
+          expectedNetCents: roiPayload?.roi?.expectedNetCents ?? null,
+        };
+      }),
+    )
+  ).sort((a, b) => {
+    const aRoi = a.roiPercent ?? Number.NEGATIVE_INFINITY;
+    const bRoi = b.roiPercent ?? Number.NEGATIVE_INFINITY;
+    if (bRoi !== aRoi) return bRoi - aRoi;
+    const aChance = a.breakEvenChancePercent ?? -1;
+    const bChance = b.breakEvenChancePercent ?? -1;
+    if (bChance !== aChance) return bChance - aChance;
+    return b.dealScore - a.dealScore || a.offer.totalCents - b.offer.totalCents;
+  });
 
   return {
     budgetCents,

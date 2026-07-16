@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatUsd } from "@/lib/money";
 import { desktop, openProductLink } from "@/lib/desktopClient";
 import { SealedTypeFilter } from "@/components/SealedTypeFilter";
+import { preorderSetNames } from "@/lib/catalog/products";
 import { SEALED_TYPE_LABELS, SEALED_TYPES, type SealedTypeId } from "@/lib/sealedTypes";
 
 type PreorderEvent = {
@@ -39,6 +40,7 @@ type Props = {
 };
 
 const DEFAULT_TYPES = SEALED_TYPES.map((t) => t.id);
+const ALL_SETS = "";
 
 export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
   const [events, setEvents] = useState<PreorderEvent[]>([]);
@@ -47,6 +49,8 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
   const [now, setNow] = useState(0);
   const [flashId, setFlashId] = useState<string | null>(null);
   const [sealedTypes, setSealedTypes] = useState<SealedTypeId[]>(DEFAULT_TYPES);
+  const [selectedSet, setSelectedSet] = useState(ALL_SETS);
+  const setOptions = useMemo(() => preorderSetNames(), []);
 
   useEffect(() => {
     const tick = window.setInterval(() => setNow(Date.now()), 1000);
@@ -128,8 +132,12 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
 
   const visibleEvents = useMemo(() => {
     if (sealedTypes.length === 0) return [];
-    return events.filter((e) => sealedTypes.includes(e.sealedType as SealedTypeId));
-  }, [events, sealedTypes]);
+    return events.filter((e) => {
+      if (!sealedTypes.includes(e.sealedType as SealedTypeId)) return false;
+      if (selectedSet && e.setName !== selectedSet) return false;
+      return true;
+    });
+  }, [events, sealedTypes, selectedSet]);
 
   const panel = (
     <aside className="flex h-full min-h-0 flex-col border-l border-[var(--line)] bg-[rgba(11,18,16,0.92)] backdrop-blur-md">
@@ -174,6 +182,23 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
             <span className="font-semibold text-[var(--brass-300)]">{secondsToNext}s</span>
           </p>
         </div>
+        <label className="block space-y-1.5">
+          <span className="text-xs uppercase tracking-[0.18em] text-[var(--brass-300)]/80">
+            Set
+          </span>
+          <select
+            value={selectedSet}
+            onChange={(e) => setSelectedSet(e.target.value)}
+            className="w-full rounded border border-[var(--line)] bg-[rgba(8,14,12,0.95)] px-2.5 py-2 text-sm text-[var(--parchment)] outline-none focus:border-[var(--emerald-400)]/50"
+          >
+            <option value={ALL_SETS}>All new / upcoming sets</option>
+            {setOptions.map((setName) => (
+              <option key={setName} value={setName}>
+                {setName}
+              </option>
+            ))}
+          </select>
+        </label>
         <SealedTypeFilter
           compact
           selected={sealedTypes}
@@ -184,7 +209,7 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
       <ul className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3">
         {visibleEvents.length === 0 && (
           <li className="px-1 text-sm text-[var(--parchment)]/50">
-            No matching new-set preorders for the selected sealed types.
+            No matching new-set preorders for the selected set / sealed types.
           </li>
         )}
         {visibleEvents.map((event) => (
