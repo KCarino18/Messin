@@ -1,7 +1,6 @@
-import { catalogById } from "@/lib/catalog/products";
+import { catalogById, SEALED_CATALOG } from "@/lib/catalog/products";
 import type { SealedTypeId } from "@/lib/sealedTypes";
 import { loadPricedCardsForSet } from "./cardData";
-import { scryfallCodeForSet } from "./setMeta";
 import { simulateSealedRoi, type RoiResult } from "./simulate";
 
 export type ProductRoiResponse = {
@@ -11,12 +10,20 @@ export type ProductRoiResponse = {
   sealedType: SealedTypeId;
   buyPriceCents: number;
   buyLabel: string;
-  scryfallCode: string | null;
+  tcgplayerGroupId: number | null;
   cardCount: number;
+  priceSource: "tcgplayer";
   roi: RoiResult | null;
   message: string;
   unsupportedReason?: string;
 };
+
+function tcgGroupIdForSet(setName: string): number | null {
+  return (
+    SEALED_CATALOG.find((p) => p.setName === setName && p.tcgplayerGroupId != null)
+      ?.tcgplayerGroupId ?? null
+  );
+}
 
 export async function buildProductRoi(options: {
   productId: string;
@@ -28,7 +35,7 @@ export async function buildProductRoi(options: {
   buyLabel?: string;
 }): Promise<ProductRoiResponse> {
   const buyLabel = options.buyLabel ?? "best live listing";
-  const code = scryfallCodeForSet(options.setName);
+  const groupId = tcgGroupIdForSet(options.setName);
   const displayPriceCents = options.itemPriceCents ?? options.buyPriceCents;
 
   const base = {
@@ -38,8 +45,9 @@ export async function buildProductRoi(options: {
     sealedType: options.sealedType,
     buyPriceCents: options.buyPriceCents,
     buyLabel,
-    scryfallCode: code,
+    tcgplayerGroupId: groupId,
     cardCount: 0,
+    priceSource: "tcgplayer" as const,
   };
 
   if (
@@ -55,11 +63,11 @@ export async function buildProductRoi(options: {
     };
   }
 
-  if (!code) {
+  if (groupId == null) {
     return {
       ...base,
       roi: null,
-      message: `No card-price map yet for ${options.setName}.`,
+      message: `No TCGPlayer set map yet for ${options.setName}.`,
       unsupportedReason: "missing_set_map",
     };
   }

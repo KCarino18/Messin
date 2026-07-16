@@ -167,9 +167,9 @@ export function simulateSealedRoi(options: {
     trials,
     model,
     notes: [
+      "Singles priced from TCGPlayer market data (tcgcsv daily feed).",
       `Assumes selling singles with ~${Math.round(SELL_FRICTION * 100)}% fees/friction.`,
       "Pull rates are a simplified model — not official Wizards odds for every special slot.",
-      "Special guests, list cards, and treatment variants can swing results.",
     ],
   };
 }

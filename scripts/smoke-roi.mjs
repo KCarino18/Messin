@@ -24,16 +24,22 @@ const roi = await backend.getProductRoi("msh-collector-booster-display");
 if (!roi) throw new Error("No ROI payload");
 if (!roi.message) throw new Error("Missing ROI message");
 if (!roi.roi) throw new Error(`ROI model failed: ${roi.message}`);
+if (roi.priceSource !== "tcgplayer") {
+  throw new Error(`Expected tcgplayer price source, got ${roi.priceSource}`);
+}
 if (roi.buyPriceCents < 20000) {
   throw new Error(`Buy price too low to be a collector display: ${roi.buyPriceCents}`);
 }
 if (roi.roi.breakEvenChancePercent < 0 || roi.roi.breakEvenChancePercent > 100) {
   throw new Error("Break-even % out of range");
 }
+if (roi.cardCount < 50) {
+  throw new Error(`Too few TCGPlayer singles loaded: ${roi.cardCount}`);
+}
 
 console.log(roi.message);
 console.log(
-  `OK ROI: buy $${(roi.buyPriceCents / 100).toFixed(2)} · EV net $${(roi.roi.expectedNetCents / 100).toFixed(2)} · break-even ${roi.roi.breakEvenChancePercent}% · cards=${roi.cardCount}`,
+  `OK ROI (TCGPlayer singles): buy $${(roi.buyPriceCents / 100).toFixed(2)} · EV net $${(roi.roi.expectedNetCents / 100).toFixed(2)} · break-even ${roi.roi.breakEvenChancePercent}% · cards=${roi.cardCount}`,
 );
 
 await backend.shutdownBackend();

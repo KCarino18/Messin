@@ -18,6 +18,17 @@ type TcgProductRow = {
   name: string;
   url: string;
   groupId: number;
+  extendedData?: Array<{ name?: string; value?: string }>;
+};
+
+export type TcgSinglesCard = {
+  productId: number;
+  name: string;
+  rarity: "common" | "uncommon" | "rare" | "mythic";
+  marketPriceCents: number;
+  lowPriceCents: number | null;
+  foilMarketPriceCents: number | null;
+  url: string;
 };
 
 type CacheEntry<T> = { at: number; value: T };
@@ -113,4 +124,110 @@ export async function fetchTcgPlayerPriceInGroup(
 /** Shipping estimate for TCGPlayer sealed (many listings are free over ~$50). */
 export function estimateTcgShippingCents(itemPriceCents: number): number {
   return itemPriceCents >= 5000 ? 0 : 399;
+}
+
+function rarityFromExtended(
+  extended: TcgProductRow["extendedData"],
+): TcgSinglesCard["rarity"] | null {
+  const raw = extended?.find((e) => e.name === "Rarity")?.value?.trim().toUpperCase();
+  if (!raw) return null;
+  if (raw === "C" || raw === "COMMON") return "common";
+  if (raw === "U" || raw === "UNCOMMON") return "uncommon";
+  if (raw === "R" || raw === "RARE") return "rare";
+  if (raw === "M" || raw === "MYTHIC" || raw === "MYTHIC RARE") return "mythic";
+  return null;
+}
+
+function isSealedOrAccessoryName(name: string): boolean {
+  return /booster|bundle|display|case|deck display|commander deck|scene box|jumpstart|beginner box|pack$|pack\b/i.test(
+    name,
+  );
+}
+
+const groupSinglesCache = new Map<number, CacheEntry<TcgSinglesCard[]>>();
+
+/**
+ * Load TCGPlayer singles (Normal + Foil market) for a set/group.
+ * Uses tcgcsv.com daily TCGPlayer dump — same live pricing feed as sealed.
+ */
+export async function fetchTcgPlayerSinglesForGroup(
+  groupId: number,
+): Promise<TcgSinglesCard[]> {
+  const now = Date.now();
+  const hit = groupSinglesCache.get(groupId);
+  if (hit && now - hit.at < CACHE_TTL_MS) return hit.value;
+
+  const [productsBody, pricesBody] = await Promise.all([
+    fetchJson<{ results: TcgProductRow[] }>(`${BASE}/1/${groupId}/products`),
+    fetchJson<{ results: TcgPriceRow[] }>(`${BASE}/1/${groupId}/prices`),
+  ]);
+
+  const pricesById = new Map<number, TcgPriceRow[]>();
+  for (const row of pricesBody.results) {
+    const list = pricesById.get(row.productId) ?? [];
+    list.push(row);
+    pricesById.set(row.productId, list);
+  }
+
+  const singles: TcgSinglesCard[] = [];
+  for (const product of productsBody.results) {
+    if (isSealedOrAccessoryName(product.name)) continue;
+    const rarity = rarityFromExtended(product.extendedData);
+    if (!rarity) continue;
+
+    const rows = pricesById.get(product.productId) ?? [];
+    const normal =
+      rows.find((r) => (r.subTypeName ?? "Normal") === "Normal") ?? null;
+    const foil = rows.find((r) => r.subTypeName === "Foil") ?? null;
+    const market = normal?.marketPrice ?? normal?.midPrice ?? normal?.lowPrice;
+    if (market == null || market <= 0) continue;
+
+    singles.push({
+      productId: product.productId,
+      name: product.name,
+      rarity,
+      marketPriceCents: cents(market),
+      lowPriceCents: normal?.lowPrice != null ? cents(normal.lowPrice) : null,
+      foilMarketPriceCents:
+        foil?.marketPrice != null
+          ? cents(foil.marketPrice)
+          : foil?.lowPrice != null
+            ? cents(foil.lowPrice)
+            : null,
+      url: product.url,
+    });
+
+    // Keep sealed-price caches warm for this group too.
+    productCache.set(product.productId, { at: now, value: product });
+    priceCache.set(product.productId, {
+      at: now,
+      value: pickNormalPrice(rows),
+    });
+  }
+
+  // Deduplicate by card name: keep the printing with the highest market price
+  // (borderless/showcase chases matter for EV).
+  const byName = new Map<string, TcgSinglesCard>();
+  for (const card of singles) {
+    // Strip treatment suffixes for pooling? Keep distinct names — treatments are
+    // separate pull paths; for ROI slots we want one entry per unique name at
+    // max price so chase variants don't dilute the rare pool unfairly.
+    const key = card.name.replace(/\s*\(.*?\)\s*$/g, "").trim();
+    const existing = byName.get(key);
+    if (!existing || card.marketPriceCents > existing.marketPriceCents) {
+      byName.set(key, { ...card, name: key });
+    } else if (
+      existing &&
+      (card.foilMarketPriceCents ?? 0) > (existing.foilMarketPriceCents ?? 0)
+    ) {
+      byName.set(key, {
+        ...existing,
+        foilMarketPriceCents: card.foilMarketPriceCents,
+      });
+    }
+  }
+
+  const value = [...byName.values()];
+  groupSinglesCache.set(groupId, { at: now, value });
+  return value;
 }

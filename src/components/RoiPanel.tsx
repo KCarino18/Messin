@@ -106,8 +106,9 @@ export function RoiPanel({ data, loading }: Props) {
 
       {data.roi && (
         <p className="text-[11px] leading-snug text-[var(--parchment)]/40">
-          {data.roi.model}. {data.roi.packCount} packs · {data.cardCount} priced cards ·{" "}
-          {data.roi.trials.toLocaleString()} sims. {data.roi.notes[0]}
+          {data.roi.model}. {data.roi.packCount} packs · {data.cardCount} cards @
+          TCGPlayer market · {data.roi.trials.toLocaleString()} sims.{" "}
+          {data.roi.notes[0]}
         </p>
       )}
     </div>
