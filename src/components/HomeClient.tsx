@@ -48,9 +48,9 @@ export function HomeClient({ initialBudgetCents }: { initialBudgetCents: number 
             MTG Budget
           </h1>
           <p className="mt-4 max-w-xl text-base text-[var(--parchment)]/70 sm:text-lg">
-            Set a spend ceiling and filter by sealed type — Play Booster Boxes,
-            Collector Booster Displays, Bundles, and more. Prices from TCGPlayer
-            market data.
+            Set a spend ceiling and filter by sealed type. We search real US
+            retailer product pages (Card Kingdom, GameNerdz, TCGPlayer, and more)
+            — never invented prices.
           </p>
 
           <div className="mt-8 space-y-5">

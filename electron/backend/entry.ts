@@ -253,8 +253,8 @@ async function syncCatalog() {
         searchText: productSearchText(p),
       },
     });
-    // Always refresh so upgrades replace stale demo prices with live TCGPlayer data.
-    await refreshOffers(p.id);
+    // Quick live refresh (TCGPlayer + Card Kingdom). Deep web search runs on demand.
+    await refreshOffers(p.id, { deep: false });
   }
 }
 
@@ -266,7 +266,10 @@ async function ensureBudget() {
   });
 }
 
-async function refreshOffers(productId: string) {
+async function refreshOffers(
+  productId: string,
+  options: { deep?: boolean } = {},
+) {
   const product = await db().product.findUnique({ where: { id: productId } });
   if (!product) return [];
   const catalog = catalogById(productId);
@@ -284,7 +287,9 @@ async function refreshOffers(productId: string) {
     tcgplayerGroupId: catalog?.tcgplayerGroupId,
     tcgplayerProductId: catalog?.tcgplayerProductId,
   };
-  const { offers, mode } = await fetchOffersForProduct(seed);
+  const { offers, mode } = await fetchOffersForProduct(seed, {
+    deep: options.deep ?? true,
+  });
   const scored = offers.map((o) => scoreOffer(o, product.msrpCents));
   await db().offer.deleteMany({ where: { productId } });
   await db().offer.createMany({
@@ -372,8 +377,23 @@ export async function getDeals(budgetCents: number, sealedTypes: string[] = []) 
     },
   });
 
-  for (const p of products.filter((x) => x.offers.length === 0)) {
-    await refreshOffers(p.id);
+  // Fill gaps with a deep web search; catalog sync already stored TCGPlayer + Card Kingdom.
+  const missing = products.filter((x) => x.offers.length === 0).map((p) => p.id);
+  for (let i = 0; i < missing.length; i += 3) {
+    await Promise.all(
+      missing.slice(i, i + 3).map((id) => refreshOffers(id, { deep: true })),
+    );
+  }
+
+  // Opportunistically deepen a few visible products each load (real store pages).
+  const deepen = products
+    .filter((p) => p.offers.length > 0)
+    .slice(0, 4)
+    .map((p) => p.id);
+  for (let i = 0; i < deepen.length; i += 2) {
+    await Promise.all(
+      deepen.slice(i, i + 2).map((id) => refreshOffers(id, { deep: true })),
+    );
   }
 
   products = await db().product.findMany({
@@ -463,18 +483,15 @@ export async function searchProducts(q: string) {
 }
 
 export async function getOffers(productId: string) {
-  let offers = await db().offer.findMany({
-    where: { productId, rejected: false, inStock: true },
-    orderBy: { totalCents: "asc" },
-  });
-  if (offers.length === 0) offers = await refreshOffers(productId);
+  const offers = await refreshOffers(productId, { deep: true });
   const product = await db().product.findUnique({ where: { id: productId } });
   if (!product) return null;
+  const visible = offers.filter((o) => !o.rejected && o.inStock);
   return {
     product,
-    offers: offers.map(enrichOffer),
-    best: offers[0] ? enrichOffer(offers[0]) : null,
-    mode: offers.some((o) => o.isDemo) ? "demo" : "live",
+    offers: visible.map(enrichOffer),
+    best: visible[0] ? enrichOffer(visible[0]) : null,
+    mode: visible.some((o) => o.isDemo) ? "demo" : "live",
   };
 }
 

@@ -103,7 +103,7 @@ export function ProductSearch() {
             </h3>
             {mode === "live" ? (
               <span className="text-[10px] uppercase tracking-widest text-[var(--emerald-300)]/90">
-                Live · TCGPlayer
+                Live retailers
               </span>
             ) : (
               <span className="text-[10px] uppercase tracking-widest text-[var(--brass-300)]/80">

@@ -44,8 +44,9 @@ export function DealList({ deals, budgetCents, loading, mode }: Props) {
   if (deals.length === 0) {
     return (
       <p className="text-[var(--parchment)]/70">
-        No sealed products fit under {formatUsd(budgetCents)} after item + shipping +
-        tax. Raise your budget or check the lookup.
+        No live retailer listings fit under {formatUsd(budgetCents)} after item +
+        shipping + tax. Raise your budget, widen sealed types, or try again in a
+        minute while stores refresh.
       </p>
     );
   }
@@ -58,7 +59,7 @@ export function DealList({ deals, budgetCents, loading, mode }: Props) {
         </p>
         {mode === "live" ? (
           <span className="rounded border border-[var(--emerald-400)]/40 px-2 py-0.5 text-[10px] uppercase tracking-widest text-[var(--emerald-300)]">
-            Live · TCGPlayer
+            Live retailer listings
           </span>
         ) : (
           <span className="rounded border border-[var(--brass-400)]/40 px-2 py-0.5 text-[10px] uppercase tracking-widest text-[var(--brass-300)]">

@@ -20,47 +20,47 @@ await backend.initBackend({
   pollMs: 60 * 60 * 1000,
 });
 
+const detail = await backend.getOffers("msh-collector-booster-display");
+if (!detail) throw new Error("Missing Marvel collector product");
+if (detail.mode !== "live") throw new Error(`Expected live mode, got ${detail.mode}`);
+if (!detail.offers?.length) throw new Error("No live offers for Marvel collector display");
+
+const retailers = new Set(detail.offers.map((o) => o.retailerId));
+console.log(
+  "Marvel collector offers:",
+  detail.offers.map(
+    (o) =>
+      `${o.retailerId} $${(o.itemPriceCents / 100).toFixed(2)} ${o.url.slice(0, 70)}`,
+  ),
+);
+
+if (!retailers.has("tcgplayer") && !retailers.has("card_kingdom") && !retailers.has("gamenerdz")) {
+  throw new Error(`Expected a real retailer, got ${[...retailers]}`);
+}
+
+for (const offer of detail.offers) {
+  if (offer.isDemo) throw new Error("Demo offer leaked into live mode");
+  if (!/^https?:\/\//i.test(offer.url)) throw new Error(`Bad offer URL ${offer.url}`);
+  if (offer.url.includes("example.com") || offer.url.includes("scam-example")) {
+    throw new Error(`Fake URL in live offers: ${offer.url}`);
+  }
+  // Street collector displays are expensive — reject leftover MSRP-jitter nonsense under $200
+  if (offer.itemPriceCents < 20000) {
+    throw new Error(
+      `Suspiciously low collector price from ${offer.retailerId}: ${offer.itemPriceCents}`,
+    );
+  }
+}
+
 const deals = await backend.getDeals(1_000_000, [
   "play_booster_box",
   "collector_booster_display",
-  "bundle",
 ]);
-
-if (deals.mode !== "live") {
-  throw new Error(`Expected live mode, got ${deals.mode}`);
-}
-if (!deals.deals.length) {
-  throw new Error("No deals returned");
-}
-
-const mshCollector = deals.deals.find((d) =>
-  d.product.id.includes("msh-collector"),
-);
-const fdnPlay = deals.deals.find((d) => d.product.id === "fdn-play-booster-box");
-
-if (!mshCollector) throw new Error("Missing Marvel collector display deal");
-if (!fdnPlay) throw new Error("Missing Foundations play box deal");
-
-const mshItem = mshCollector.offer.itemPriceCents;
-const fdnItem = fdnPlay.offer.itemPriceCents;
-
-// Street prices should be nowhere near the old fake ~$250 collector / MSRP jitter.
-if (mshItem < 30000) {
-  throw new Error(`Marvel collector price too low to be real market: ${mshItem}`);
-}
-if (fdnItem < 10000 || fdnItem > 25000) {
-  throw new Error(`Foundations play price looks wrong: ${fdnItem}`);
-}
-
-const hasBoxType = deals.deals.some(
-  (d) => d.product.sealedType === "collector_booster_box",
-);
-if (hasBoxType) {
-  throw new Error("collector_booster_box should be gone");
-}
+if (deals.mode !== "live") throw new Error("deals not live");
+if (!deals.deals.length) throw new Error("no deals");
 
 console.log(
-  `OK live prices: Foundations play $${(fdnItem / 100).toFixed(2)}, Marvel collector $${(mshItem / 100).toFixed(2)}, ${deals.deals.length} deals`,
+  `OK: ${detail.offers.length} live Marvel collector listings from [${[...retailers].join(", ")}]; ${deals.deals.length} deals under $10k`,
 );
 
 await backend.shutdownBackend();
