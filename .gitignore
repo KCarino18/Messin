@@ -40,6 +40,9 @@ yarn-error.log*
 prisma/dev.db
 prisma/dev.db-journal
 
+# packaged installer output
+/dist/
+
 # vercel
 .vercel
 

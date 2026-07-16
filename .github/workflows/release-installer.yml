@@ -1,0 +1,64 @@
+name: Release installer
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. v0.1.0). Leave empty to use short SHA."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  package-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Package installer zip
+        run: |
+          chmod +x scripts/package-installer.sh installer/*.sh installer/*.command
+          ./scripts/package-installer.sh
+
+      - name: Resolve release tag
+        id: meta
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            TAG="${{ github.ref_name }}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            TAG="${{ inputs.version }}"
+          else
+            TAG="v0.1.0-${GITHUB_SHA::7}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Resolved release tag: $TAG"
+
+      - name: Create GitHub Release with installer
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: MTG Budget ${{ steps.meta.outputs.tag }}
+          draft: false
+          generate_release_notes: true
+          body: |
+            ## One-click download
+
+            Download **MTG-Budget-Installer.zip**, unzip it, then:
+
+            - **macOS:** double-click `Install.command`
+            - **Windows:** double-click `Install.bat`
+            - **Linux:** run `./install.sh`
+
+            Requires [Node.js 20+](https://nodejs.org).
+
+            After install, the app opens at http://localhost:3000
+          files: |
+            dist/MTG-Budget-Installer.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
