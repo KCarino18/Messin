@@ -1,22 +1,24 @@
 # MTG Budget
 
+[![Download installer](https://img.shields.io/badge/download-MTG--Budget--Installer.zip-3d9b72?style=for-the-badge&logo=github)](https://github.com/KCarino18/Messin/releases/latest/download/MTG-Budget-Installer.zip)
+[![Latest release](https://img.shields.io/github/v/release/KCarino18/Messin?style=for-the-badge)](https://github.com/KCarino18/Messin/releases/latest)
+
 Stylized sealed-product deal finder for Magic: The Gathering.
 
 Set a budget, get the best **factory-sealed** deals from a curated US retailer allowlist, look up the cheapest reputable **total price** (item + shipping + tax estimate), and keep a live **Preorder Radar** on the right that polls every **1 minute**.
 
 ## One-click download
 
-Download the latest installer from GitHub Releases:
+**→ [Download MTG-Budget-Installer.zip](https://github.com/KCarino18/Messin/releases/latest/download/MTG-Budget-Installer.zip)** ← click that to get the installer
 
-**[Download MTG-Budget-Installer.zip](https://github.com/KCarino18/Messin/releases/latest/download/MTG-Budget-Installer.zip)**
+1. Unzip the download
+2. Run the installer for your OS:
+   - **macOS** — double-click `Install.command`
+   - **Windows** — double-click `Install.bat`
+   - **Linux** — run `./install.sh`
+3. The app opens at http://localhost:3000
 
-Then unzip and:
-
-- **macOS** — double-click `Install.command`
-- **Windows** — double-click `Install.bat`
-- **Linux** — run `./install.sh`
-
-Requires [Node.js 20+](https://nodejs.org). The installer sets up the database, seeds demo data, builds the app, and opens http://localhost:3000.
+Requires [Node.js 20+](https://nodejs.org). The installer installs dependencies, sets up the database, seeds demo data, builds the app, and launches it.
 
 All releases: https://github.com/KCarino18/Messin/releases
 
