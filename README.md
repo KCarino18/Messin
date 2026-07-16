@@ -1,8 +1,8 @@
 # MTG Budget
 
-[![Download for Windows](https://img.shields.io/badge/download-Windows_.exe-3d9b72?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/KCarino18/Messin/releases/latest)
-[![Download for macOS](https://img.shields.io/badge/download-macOS_.dmg-d4a85a?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/KCarino18/Messin/releases/latest)
-[![Download for Linux](https://img.shields.io/badge/download-Linux_.AppImage-62c095?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/KCarino18/Messin/releases/latest)
+[![Download for Windows](https://img.shields.io/badge/download-Windows_.exe-3d9b72?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/KCarino18/Messin/releases/download/v0.2.0/MTG-Budget-0.1.0-Windows.exe)
+[![Download Setup](https://img.shields.io/badge/download-Windows_Setup-d4a85a?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/KCarino18/Messin/releases/download/v0.2.0/MTG-Budget-Setup-0.1.0.exe)
+[![Download for Linux](https://img.shields.io/badge/download-Linux_.AppImage-62c095?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/KCarino18/Messin/releases/download/v0.2.0/MTG-Budget-0.1.0-Linux.AppImage)
 
 Stylized sealed-product deal finder for Magic: The Gathering.
 
@@ -12,14 +12,13 @@ Set a budget, get the best **factory-sealed** deals from a curated US retailer a
 
 **No zip. No Node install. Download → double-click.**
 
-1. Open the [latest release](https://github.com/KCarino18/Messin/releases/latest)
-2. Download the file for your OS:
-   - **Windows:** `MTG-Budget-*-Windows.exe` (portable) or `MTG-Budget-Setup-*.exe`
-   - **macOS:** `MTG-Budget-*-macOS.dmg`
-   - **Linux:** `MTG-Budget-*-Linux.AppImage`
-3. Double-click it — the app opens
+| OS | Download |
+| --- | --- |
+| **Windows (portable)** | [MTG-Budget-0.1.0-Windows.exe](https://github.com/KCarino18/Messin/releases/download/v0.2.0/MTG-Budget-0.1.0-Windows.exe) |
+| **Windows (setup)** | [MTG-Budget-Setup-0.1.0.exe](https://github.com/KCarino18/Messin/releases/download/v0.2.0/MTG-Budget-Setup-0.1.0.exe) |
+| **Linux** | [MTG-Budget-0.1.0-Linux.AppImage](https://github.com/KCarino18/Messin/releases/download/v0.2.0/MTG-Budget-0.1.0-Linux.AppImage) |
 
-That is the whole install.
+All releases: https://github.com/KCarino18/Messin/releases
 
 ## Features
 
