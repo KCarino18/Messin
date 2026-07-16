@@ -1,16 +1,23 @@
 import "dotenv/config";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "../src/generated/prisma/client";
-import { SEALED_CATALOG, productSearchText } from "../src/lib/catalog/products";
+import {
+  SEALED_CATALOG,
+  preorderCatalog,
+  productSearchText,
+} from "../src/lib/catalog/products";
 import { buildDemoOffers } from "../src/lib/retailers/demoOffers";
 import { scoreOffer } from "../src/lib/retailers/scorer";
 import { estimateTaxCents } from "../src/lib/money";
+import { retailerProductSearchUrl } from "../src/lib/retailers/urls";
+import type { RetailerId } from "../src/lib/retailers/allowlist";
 import path from "node:path";
 
 const raw = process.env.DATABASE_URL ?? "file:./prisma/dev.db";
-const url = raw.startsWith("file:") && !path.isAbsolute(raw.slice(5))
-  ? `file:${path.join(process.cwd(), raw.slice(5))}`
-  : raw;
+const url =
+  raw.startsWith("file:") && !path.isAbsolute(raw.slice(5))
+    ? `file:${path.join(process.cwd(), raw.slice(5))}`
+    : raw;
 
 const adapter = new PrismaBetterSqlite3({ url });
 const prisma = new PrismaClient({ adapter });
@@ -29,6 +36,8 @@ async function main() {
         name: p.name,
         setName: p.setName,
         category: p.category,
+        sealedType: p.sealedType,
+        releaseDate: p.releaseDate,
         msrpCents: p.msrpCents,
         searchText: productSearchText(p),
       },
@@ -59,62 +68,38 @@ async function main() {
   });
 
   const now = Date.now();
-  const preorders = [
-    {
-      productId: "upcoming-edge-of-eternities-play",
-      productName: "Edge of Eternities Play Booster Box",
-      retailerId: "gamenerdz",
-      priceCents: 14376,
-      shippingCents: 299,
-      msrpCents: 14376,
-      minutesAgo: 8,
-    },
-    {
-      productId: "upcoming-spider-man-bundle",
-      productName: "Marvel's Spider-Man Bundle",
-      retailerId: "target",
-      priceCents: 4999,
-      shippingCents: 0,
-      msrpCents: 4999,
-      minutesAgo: 19,
-    },
-    {
-      productId: "upcoming-edge-of-eternities-collector",
-      productName: "Edge of Eternities Collector Booster Box",
-      retailerId: "card_kingdom",
-      priceCents: 29999,
-      shippingCents: 0,
-      msrpCents: 28776,
-      minutesAgo: 33,
-    },
-    {
-      productId: "upcoming-spider-man-play-box",
-      productName: "Marvel's Spider-Man Play Booster Box",
-      retailerId: "amazon",
-      priceCents: 14376,
-      shippingCents: 0,
-      msrpCents: 14376,
-      minutesAgo: 47,
-    },
+  const radar = preorderCatalog();
+  const retailers: RetailerId[] = [
+    "gamenerdz",
+    "card_kingdom",
+    "amazon",
+    "target",
+    "starcitygames",
   ];
 
-  for (const seed of preorders) {
-    const taxCents = estimateTaxCents(seed.priceCents, seed.shippingCents);
+  for (const [index, seed] of radar.slice(0, 6).entries()) {
+    const retailerId = retailers[index % retailers.length];
+    const shippingCents =
+      retailerId === "amazon" || retailerId === "target" ? 0 : 299;
+    const taxCents = estimateTaxCents(seed.msrpCents, shippingCents);
     await prisma.preorderEvent.create({
       data: {
-        productId: seed.productId,
-        productName: seed.productName,
-        retailerId: seed.retailerId,
-        priceCents: seed.priceCents,
-        shippingCents: seed.shippingCents,
+        productId: seed.id,
+        productName: seed.name,
+        sealedType: seed.sealedType,
+        setName: seed.setName,
+        releaseDate: seed.releaseDate,
+        retailerId,
+        priceCents: seed.msrpCents,
+        shippingCents,
         taxCents,
-        totalCents: seed.priceCents + seed.shippingCents + taxCents,
+        totalCents: seed.msrpCents + shippingCents + taxCents,
         msrpCents: seed.msrpCents,
-        isMsrp: seed.priceCents <= seed.msrpCents,
-        url: `https://example.com/preorder/${seed.productId}/${seed.retailerId}`,
+        isMsrp: true,
+        url: retailerProductSearchUrl(retailerId, seed.name),
         eventType: "went_live",
         isDemo: true,
-        createdAt: new Date(now - seed.minutesAgo * 60_000),
+        createdAt: new Date(now - (6 + index * 5) * 60_000),
       },
     });
   }
@@ -123,13 +108,15 @@ async function main() {
     data: {
       id: "preorder",
       status: "watching",
-      message: "Seeded — waiting for first live poll",
+      message: "Seeded — new & unreleased sealed only",
       lastPolledAt: new Date(now - 15_000),
       nextPollAt: new Date(now + 45_000),
     },
   });
 
-  console.log(`Seeded ${SEALED_CATALOG.length} sealed products + preorder radar events`);
+  console.log(
+    `Seeded ${SEALED_CATALOG.length} sealed products; radar eligible: ${radar.length}`,
+  );
 }
 
 main()

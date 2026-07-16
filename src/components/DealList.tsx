@@ -2,6 +2,7 @@
 
 import { formatUsd } from "@/lib/money";
 import { openProductLink } from "@/lib/desktopClient";
+import { SEALED_TYPE_LABELS, type SealedTypeId } from "@/lib/sealedTypes";
 
 export type Deal = {
   product: {
@@ -9,6 +10,8 @@ export type Deal = {
     name: string;
     setName: string;
     category: string;
+    sealedType?: string;
+    releaseDate?: string;
     msrpCents: number;
   };
   offer: {
@@ -68,8 +71,12 @@ export function DealList({ deals, budgetCents, loading, mode }: Props) {
                   {deal.product.name}
                 </h3>
                 <p className="mt-1 text-sm text-[var(--parchment)]/60">
-                  {deal.product.setName} · {deal.product.category} · MSRP{" "}
-                  {formatUsd(deal.product.msrpCents)}
+                  {deal.product.setName} ·{" "}
+                  {deal.product.sealedType
+                    ? SEALED_TYPE_LABELS[deal.product.sealedType as SealedTypeId] ??
+                      deal.product.sealedType
+                    : deal.product.category}{" "}
+                  · MSRP {formatUsd(deal.product.msrpCents)}
                 </p>
                 <p className="mt-2 text-sm text-[var(--emerald-300)]">
                   {deal.offer.retailerName}
@@ -89,13 +96,18 @@ export function DealList({ deals, budgetCents, loading, mode }: Props) {
                   {formatUsd(deal.offer.shippingCents)} · tax est.{" "}
                   {formatUsd(deal.offer.taxCents)}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => void openProductLink(deal.offer.url)}
+                <a
+                  href={deal.offer.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    void openProductLink(deal.offer.url);
+                  }}
                   className="mt-2 inline-block text-sm text-[var(--emerald-300)] underline-offset-4 hover:underline"
                 >
                   Buy at {deal.offer.retailerName}
-                </button>
+                </a>
               </div>
             </div>
           </li>

@@ -17,9 +17,9 @@ Linux AppImage and macOS DMG are also published on the same releases page when a
 
 ## What it does
 
-- Set a budget and get the best **factory-sealed** deals
+- Set a budget and filter by sealed type (Play / Set / Collector boxes, displays, bundles, commander)
 - Look up sealed product and see the cheapest reputable US total price (item + shipping + tax)
-- Keep a live **Preorder Radar** watching allowlisted retailers every minute
+- Keep a live **Preorder Radar** for **just-released + unreleased** sets only, with the same sealed-type filters
 
 ## Allowlisted retailers
 

@@ -42,16 +42,25 @@ async function initBackend() {
 function registerIpc() {
   ipcMain.handle("budget:get", async () => backend.getBudget());
   ipcMain.handle("budget:set", async (_e, amountCents) => backend.setBudget(amountCents));
-  ipcMain.handle("deals:list", async (_e, budgetCents) => backend.getDeals(budgetCents));
+  ipcMain.handle("deals:list", async (_e, budgetCents, sealedTypes = []) =>
+    backend.getDeals(budgetCents, sealedTypes),
+  );
   ipcMain.handle("products:search", async (_e, q) => backend.searchProducts(q));
   ipcMain.handle("products:offers", async (_e, productId) => backend.getOffers(productId));
-  ipcMain.handle("preorders:snapshot", async () => backend.getPreorderSnapshot());
+  ipcMain.handle("preorders:snapshot", async (_e, sealedTypes = []) =>
+    backend.getPreorderSnapshot(undefined, sealedTypes),
+  );
   ipcMain.handle("shell:openExternal", async (_e, url) => {
-    if (typeof url === "string" && /^https?:\/\//i.test(url)) {
-      await shell.openExternal(url);
+    try {
+      if (typeof url !== "string") return false;
+      const parsed = new URL(url);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+      await shell.openExternal(parsed.toString(), { activate: true });
       return true;
+    } catch (error) {
+      console.error("openExternal failed", url, error);
+      return false;
     }
-    return false;
   });
 }
 

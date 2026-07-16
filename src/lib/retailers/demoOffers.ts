@@ -1,4 +1,5 @@
 import { cents } from "@/lib/money";
+import { retailerProductSearchUrl } from "./urls";
 import type { ProductSeed, RawOffer } from "./types";
 
 /** Deterministic pseudo-random from product id + retailer for stable demo prices */
@@ -18,6 +19,7 @@ function jitter(seed: string, min: number, max: number): number {
 export function buildDemoOffers(product: ProductSeed): RawOffer[] {
   const msrp = product.msrpCents;
   const base = Math.round(msrp * (0.88 + jitter(product.id, 0, 20) / 100));
+  const isPreorderProduct = new Date(`${product.releaseDate}T12:00:00Z`).getTime() > Date.now();
 
   const offers: RawOffer[] = [
     {
@@ -25,9 +27,9 @@ export function buildDemoOffers(product: ProductSeed): RawOffer[] {
       sellerName: "Card Kingdom",
       itemPriceCents: base + jitter(`${product.id}-ck`, -200, 400),
       shippingCents: product.msrpCents >= 5000 ? 0 : 399,
-      url: `https://www.cardkingdom.com/catalog/search?search=${encodeURIComponent(product.name)}`,
+      url: retailerProductSearchUrl("card_kingdom", product.name),
       inStock: true,
-      isPreorder: false,
+      isPreorder: isPreorderProduct,
       isDemo: true,
     },
     {
@@ -35,9 +37,9 @@ export function buildDemoOffers(product: ProductSeed): RawOffer[] {
       sellerName: "CoolStuffInc",
       itemPriceCents: base + jitter(`${product.id}-csi`, -300, 500),
       shippingCents: 499,
-      url: `https://www.coolstuffinc.com/main_search.php?Pa=searchOnName&page=1&resultsPerPage=25&q=${encodeURIComponent(product.name)}`,
+      url: retailerProductSearchUrl("coolstuffinc", product.name),
       inStock: true,
-      isPreorder: false,
+      isPreorder: isPreorderProduct,
       isDemo: true,
     },
     {
@@ -45,9 +47,9 @@ export function buildDemoOffers(product: ProductSeed): RawOffer[] {
       sellerName: "Channel Fireball",
       itemPriceCents: base + jitter(`${product.id}-cfb`, -100, 600),
       shippingCents: 399,
-      url: `https://store.channelfireball.com/search?q=${encodeURIComponent(product.name)}`,
+      url: retailerProductSearchUrl("channel_fireball", product.name),
       inStock: true,
-      isPreorder: false,
+      isPreorder: isPreorderProduct,
       isDemo: true,
     },
     {
@@ -55,9 +57,9 @@ export function buildDemoOffers(product: ProductSeed): RawOffer[] {
       sellerName: "StarCityGames",
       itemPriceCents: base + jitter(`${product.id}-scg`, -250, 450),
       shippingCents: 499,
-      url: `https://starcitygames.com/search/?search_query=${encodeURIComponent(product.name)}`,
+      url: retailerProductSearchUrl("starcitygames", product.name),
       inStock: true,
-      isPreorder: false,
+      isPreorder: isPreorderProduct,
       isDemo: true,
     },
     {
@@ -65,9 +67,9 @@ export function buildDemoOffers(product: ProductSeed): RawOffer[] {
       sellerName: "GameNerdz",
       itemPriceCents: Math.round(msrp * 0.92) + jitter(`${product.id}-gn`, -150, 350),
       shippingCents: 299,
-      url: `https://www.gamenerdz.com/search?type=product&q=${encodeURIComponent(product.name)}`,
+      url: retailerProductSearchUrl("gamenerdz", product.name),
       inStock: true,
-      isPreorder: false,
+      isPreorder: isPreorderProduct,
       isDemo: true,
     },
     {
@@ -75,9 +77,9 @@ export function buildDemoOffers(product: ProductSeed): RawOffer[] {
       sellerName: "Amazon.com",
       itemPriceCents: base + jitter(`${product.id}-amz`, -400, 700),
       shippingCents: 0,
-      url: `https://www.amazon.com/s?k=${encodeURIComponent(product.name)}`,
+      url: retailerProductSearchUrl("amazon", product.name),
       inStock: true,
-      isPreorder: false,
+      isPreorder: isPreorderProduct,
       isDemo: true,
       soldByAmazon: true,
     },
@@ -86,9 +88,9 @@ export function buildDemoOffers(product: ProductSeed): RawOffer[] {
       sellerName: "Target",
       itemPriceCents: msrp + jitter(`${product.id}-tgt`, -100, 200),
       shippingCents: 0,
-      url: `https://www.target.com/s?searchTerm=${encodeURIComponent(product.name)}`,
+      url: retailerProductSearchUrl("target", product.name),
       inStock: jitter(`${product.id}-tgt-stock`, 0, 3) !== 0,
-      isPreorder: false,
+      isPreorder: isPreorderProduct,
       isDemo: true,
       soldByTarget: true,
     },
@@ -97,9 +99,9 @@ export function buildDemoOffers(product: ProductSeed): RawOffer[] {
       sellerName: "Walmart",
       itemPriceCents: msrp + jitter(`${product.id}-wmt`, -200, 300),
       shippingCents: 0,
-      url: `https://www.walmart.com/search?q=${encodeURIComponent(product.name)}`,
+      url: retailerProductSearchUrl("walmart", product.name),
       inStock: true,
-      isPreorder: false,
+      isPreorder: isPreorderProduct,
       isDemo: true,
       soldByWalmart: true,
     },
@@ -108,15 +110,14 @@ export function buildDemoOffers(product: ProductSeed): RawOffer[] {
       sellerName: "MTG Sealed Vault",
       itemPriceCents: Math.round(msrp * 0.85) + jitter(`${product.id}-tcg`, -200, 300),
       shippingCents: 199,
-      url: `https://www.tcgplayer.com/search/magic/product?productLineName=magic&q=${encodeURIComponent(product.name)}`,
+      url: retailerProductSearchUrl("tcgplayer", product.name),
       inStock: true,
-      isPreorder: false,
+      isPreorder: isPreorderProduct,
       isDemo: true,
       tcgSellerRating: 99.5,
       tcgFeedbackCount: 4200,
       shipsFromUs: true,
     },
-    // Scam bait — must be rejected by scorer
     {
       retailerId: "tcgplayer",
       sellerName: "PennyShipExpress",
@@ -130,7 +131,6 @@ export function buildDemoOffers(product: ProductSeed): RawOffer[] {
       tcgFeedbackCount: 12,
       shipsFromUs: true,
     },
-    // Amazon 3P — must be rejected
     {
       retailerId: "amazon",
       sellerName: "Random3PSeller",

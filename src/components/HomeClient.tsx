@@ -5,18 +5,23 @@ import { BudgetSetter } from "@/components/BudgetSetter";
 import { DealList, type Deal } from "@/components/DealList";
 import { ProductSearch } from "@/components/ProductSearch";
 import { PreorderRadar } from "@/components/PreorderRadar";
+import { SealedTypeFilter } from "@/components/SealedTypeFilter";
 import { desktop } from "@/lib/desktopClient";
+import { SEALED_TYPES, type SealedTypeId } from "@/lib/sealedTypes";
+
+const DEFAULT_TYPES = SEALED_TYPES.map((t) => t.id);
 
 export function HomeClient({ initialBudgetCents }: { initialBudgetCents: number }) {
   const [budgetCents, setBudgetCents] = useState(initialBudgetCents);
+  const [sealedTypes, setSealedTypes] = useState<SealedTypeId[]>(DEFAULT_TYPES);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [mode, setMode] = useState("demo");
   const [loading, startTransition] = useTransition();
   const [radarOpen, setRadarOpen] = useState(false);
 
-  const loadDeals = useCallback((cents: number) => {
+  const loadDeals = useCallback((cents: number, types: SealedTypeId[]) => {
     startTransition(async () => {
-      const data = (await desktop().getDeals(cents)) as {
+      const data = (await desktop().getDeals(cents, types)) as {
         deals: Deal[];
         mode: string;
       };
@@ -26,8 +31,8 @@ export function HomeClient({ initialBudgetCents }: { initialBudgetCents: number 
   }, []);
 
   useEffect(() => {
-    loadDeals(budgetCents);
-  }, [budgetCents, loadDeals]);
+    loadDeals(budgetCents, sealedTypes);
+  }, [budgetCents, sealedTypes, loadDeals]);
 
   return (
     <div className="app-root flex min-h-screen">
@@ -43,15 +48,18 @@ export function HomeClient({ initialBudgetCents }: { initialBudgetCents: number 
             MTG Budget
           </h1>
           <p className="mt-4 max-w-xl text-base text-[var(--parchment)]/70 sm:text-lg">
-            Set a spend ceiling. We rank factory-sealed Magic product by total
-            landed cost — item, shipping, and tax — from allowlisted US shops only.
+            Set a spend ceiling and pick sealed types — Play, Set, Collector boxes,
+            displays, bundles, and more.
           </p>
 
-          <div className="mt-8">
+          <div className="mt-8 space-y-5">
             <BudgetSetter
               initialCents={budgetCents}
               onBudgetChange={(cents) => setBudgetCents(cents)}
             />
+            <div className="max-w-3xl">
+              <SealedTypeFilter selected={sealedTypes} onChange={setSealedTypes} />
+            </div>
           </div>
 
           <button

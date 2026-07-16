@@ -134,13 +134,18 @@ export function ProductSearch() {
                   <p className="font-display text-xl text-[var(--emerald-300)]">
                     {formatUsd(offer.totalCents)}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => void openProductLink(offer.url)}
+                  <a
+                    href={offer.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      void openProductLink(offer.url);
+                    }}
                     className="text-xs text-[var(--brass-300)] underline-offset-2 hover:underline"
                   >
                     Open listing
-                  </button>
+                  </a>
                 </div>
               </li>
             ))}

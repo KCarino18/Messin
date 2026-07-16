@@ -8,17 +8,22 @@ datasource db {
 }
 
 model Product {
-  id          String         @id @default(cuid())
-  name        String
-  setName     String
-  category    String
-  msrpCents   Int
-  imageUrl    String?
-  searchText  String
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  offers      Offer[]
-  preorders   PreorderEvent[]
+  id           String         @id @default(cuid())
+  name         String
+  setName      String
+  category     String
+  sealedType   String         @default("play_booster_box")
+  releaseDate  String         @default("2020-01-01")
+  msrpCents    Int
+  imageUrl     String?
+  searchText   String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  offers       Offer[]
+  preorders    PreorderEvent[]
+
+  @@index([sealedType])
+  @@index([releaseDate])
 }
 
 model Offer {
@@ -54,6 +59,9 @@ model PreorderEvent {
   productId      String?
   product        Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
   productName    String
+  sealedType     String   @default("play_booster_box")
+  setName        String   @default("")
+  releaseDate    String   @default("2020-01-01")
   retailerId     String
   priceCents     Int
   shippingCents  Int
@@ -67,6 +75,7 @@ model PreorderEvent {
   createdAt      DateTime @default(now())
 
   @@index([createdAt])
+  @@index([sealedType])
 }
 
 model WatcherState {

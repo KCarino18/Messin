@@ -2,12 +2,19 @@ import path from "node:path";
 import fs from "node:fs";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "../../src/generated/prisma/client";
-import { SEALED_CATALOG, productSearchText } from "../../src/lib/catalog/products";
+import {
+  SEALED_CATALOG,
+  preorderCatalog,
+  productSearchText,
+} from "../../src/lib/catalog/products";
 import { RETAILER_ALLOWLIST, RETAILER_BY_ID } from "../../src/lib/retailers/allowlist";
 import { fetchOffersForProduct } from "../../src/lib/retailers/adapters";
 import { dealScore, scoreOffer } from "../../src/lib/retailers/scorer";
 import { estimateTaxCents } from "../../src/lib/money";
+import { retailerProductSearchUrl } from "../../src/lib/retailers/urls";
+import { releaseBucket, type SealedTypeId } from "../../src/lib/sealedTypes";
 import type { ProductSeed } from "../../src/lib/retailers/types";
+import type { RetailerId } from "../../src/lib/retailers/allowlist";
 
 let prisma: PrismaClient | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -31,9 +38,9 @@ export async function initBackend(options: {
   }
 
   prisma = createPrisma(dbPath);
-  await ensureCatalog();
+  await syncCatalog();
   await ensureBudget();
-  await seedPreordersIfEmpty();
+  await resetPreorderEventsForRadar();
   startWatcher(pollMs);
   return { ok: true as const };
 }
@@ -43,21 +50,42 @@ function db() {
   return prisma;
 }
 
-async function ensureCatalog() {
-  const count = await db().product.count();
-  if (count > 0) return;
+async function syncCatalog() {
+  const keepIds = new Set(SEALED_CATALOG.map((p) => p.id));
+  const existing = await db().product.findMany({ select: { id: true } });
+  for (const row of existing) {
+    if (!keepIds.has(row.id)) {
+      await db().product.delete({ where: { id: row.id } });
+    }
+  }
+
   for (const p of SEALED_CATALOG) {
-    await db().product.create({
-      data: {
+    await db().product.upsert({
+      where: { id: p.id },
+      create: {
         id: p.id,
         name: p.name,
         setName: p.setName,
         category: p.category,
+        sealedType: p.sealedType,
+        releaseDate: p.releaseDate,
+        msrpCents: p.msrpCents,
+        searchText: productSearchText(p),
+      },
+      update: {
+        name: p.name,
+        setName: p.setName,
+        category: p.category,
+        sealedType: p.sealedType,
+        releaseDate: p.releaseDate,
         msrpCents: p.msrpCents,
         searchText: productSearchText(p),
       },
     });
-    await refreshOffers(p.id);
+    const offerCount = await db().offer.count({ where: { productId: p.id } });
+    if (offerCount === 0) {
+      await refreshOffers(p.id);
+    }
   }
 }
 
@@ -77,6 +105,8 @@ async function refreshOffers(productId: string) {
     name: product.name,
     setName: product.setName,
     category: product.category as ProductSeed["category"],
+    sealedType: product.sealedType as SealedTypeId,
+    releaseDate: product.releaseDate,
     msrpCents: product.msrpCents,
   };
   const { offers, mode } = await fetchOffersForProduct(seed);
@@ -142,8 +172,15 @@ export async function setBudget(amountCents: number) {
   return { amountCents: budget.amountCents };
 }
 
-export async function getDeals(budgetCents: number) {
+export async function getDeals(budgetCents: number, sealedTypes: string[] = []) {
+  if (sealedTypes.length === 0) {
+    return { budgetCents, sealedTypes, deals: [], mode: "demo" as const };
+  }
+
+  const where = { sealedType: { in: sealedTypes } };
+
   let products = await db().product.findMany({
+    where,
     include: {
       offers: {
         where: { rejected: false, inStock: true },
@@ -158,6 +195,7 @@ export async function getDeals(budgetCents: number) {
   }
 
   products = await db().product.findMany({
+    where,
     include: {
       offers: {
         where: { rejected: false, inStock: true },
@@ -177,6 +215,8 @@ export async function getDeals(budgetCents: number) {
           name: p.name,
           setName: p.setName,
           category: p.category,
+          sealedType: p.sealedType,
+          releaseDate: p.releaseDate,
           msrpCents: p.msrpCents,
         },
         offer: enrichOffer(best),
@@ -189,6 +229,7 @@ export async function getDeals(budgetCents: number) {
 
   return {
     budgetCents,
+    sealedTypes,
     deals,
     mode: deals.some((d) => d.offer.isDemo) ? "demo" : "live",
   };
@@ -205,6 +246,7 @@ export async function searchProducts(q: string) {
             { setName: { contains: query } },
             { searchText: { contains: query } },
             { category: { contains: query } },
+            { sealedType: { contains: query } },
           ],
         },
         orderBy: { name: "asc" },
@@ -229,83 +271,76 @@ export async function getOffers(productId: string) {
   };
 }
 
-const PREORDER_TARGETS = [
-  {
-    productId: "upcoming-edge-of-eternities-play",
-    productName: "Edge of Eternities Play Booster Box",
-    msrpCents: 14376,
-    retailers: ["card_kingdom", "gamenerdz", "amazon", "target"] as const,
-  },
-  {
-    productId: "upcoming-edge-of-eternities-collector",
-    productName: "Edge of Eternities Collector Booster Box",
-    msrpCents: 28776,
-    retailers: ["coolstuffinc", "channel_fireball", "starcitygames"] as const,
-  },
-  {
-    productId: "upcoming-spider-man-play-box",
-    productName: "Marvel's Spider-Man Play Booster Box",
-    msrpCents: 14376,
-    retailers: ["amazon", "walmart", "tcgplayer", "gamenerdz"] as const,
-  },
-  {
-    productId: "upcoming-spider-man-bundle",
-    productName: "Marvel's Spider-Man Bundle",
-    msrpCents: 4999,
-    retailers: ["target", "walmart", "card_kingdom"] as const,
-  },
-];
+function radarTargets() {
+  return preorderCatalog().map((p) => ({
+    productId: p.id,
+    productName: p.name,
+    setName: p.setName,
+    sealedType: p.sealedType,
+    releaseDate: p.releaseDate,
+    msrpCents: p.msrpCents,
+    retailers: [
+      "card_kingdom",
+      "gamenerdz",
+      "amazon",
+      "target",
+      "coolstuffinc",
+      "starcitygames",
+      "tcgplayer",
+    ] as RetailerId[],
+  }));
+}
 
-async function seedPreordersIfEmpty() {
+async function resetPreorderEventsForRadar() {
+  const eligibleIds = new Set(preorderCatalog().map((p) => p.id));
+  await db().preorderEvent.deleteMany({
+    where: {
+      OR: [{ productId: null }, { productId: { notIn: [...eligibleIds] } }],
+    },
+  });
+
   if ((await db().preorderEvent.count()) > 0) return;
+
   const now = Date.now();
-  const seeds = [
-    {
-      productId: "upcoming-edge-of-eternities-play",
-      productName: "Edge of Eternities Play Booster Box",
-      retailerId: "gamenerdz",
-      priceCents: 14376,
-      shippingCents: 299,
-      msrpCents: 14376,
-      minutesAgo: 8,
-    },
-    {
-      productId: "upcoming-spider-man-bundle",
-      productName: "Marvel's Spider-Man Bundle",
-      retailerId: "target",
-      priceCents: 4999,
-      shippingCents: 0,
-      msrpCents: 4999,
-      minutesAgo: 19,
-    },
-  ];
+  const seeds = radarTargets().slice(0, 4);
+  let i = 0;
   for (const seed of seeds) {
-    const taxCents = estimateTaxCents(seed.priceCents, seed.shippingCents);
+    const retailerId = seed.retailers[i % seed.retailers.length];
+    const shippingCents =
+      retailerId === "amazon" || retailerId === "target" || retailerId === "walmart" ? 0 : 299;
+    const taxCents = estimateTaxCents(seed.msrpCents, shippingCents);
     await db().preorderEvent.create({
       data: {
         productId: seed.productId,
         productName: seed.productName,
-        retailerId: seed.retailerId,
-        priceCents: seed.priceCents,
-        shippingCents: seed.shippingCents,
+        sealedType: seed.sealedType,
+        setName: seed.setName,
+        releaseDate: seed.releaseDate,
+        retailerId,
+        priceCents: seed.msrpCents,
+        shippingCents,
         taxCents,
-        totalCents: seed.priceCents + seed.shippingCents + taxCents,
+        totalCents: seed.msrpCents + shippingCents + taxCents,
         msrpCents: seed.msrpCents,
-        isMsrp: seed.priceCents <= seed.msrpCents,
-        url: "https://www.gamenerdz.com/",
+        isMsrp: true,
+        url: retailerProductSearchUrl(retailerId, seed.productName),
         eventType: "went_live",
         isDemo: true,
-        createdAt: new Date(now - seed.minutesAgo * 60_000),
+        createdAt: new Date(now - (8 + i * 7) * 60_000),
       },
     });
+    i += 1;
   }
 }
 
 async function pollPreorders(pollMs: number) {
+  const targets = radarTargets();
+  if (targets.length === 0) return;
+
   tick += 1;
   const now = new Date();
   const next = new Date(now.getTime() + pollMs);
-  const target = PREORDER_TARGETS[tick % PREORDER_TARGETS.length];
+  const target = targets[tick % targets.length];
   const retailerId = target.retailers[tick % target.retailers.length];
   const atMsrp = tick % 3 !== 0;
   const itemPriceCents = atMsrp
@@ -315,9 +350,10 @@ async function pollPreorders(pollMs: number) {
     retailerId === "amazon" || retailerId === "target" || retailerId === "walmart" ? 0 : 399;
   const taxCents = estimateTaxCents(itemPriceCents, shippingCents);
   const totalCents = itemPriceCents + shippingCents + taxCents;
+  const productUrl = retailerProductSearchUrl(retailerId, target.productName);
 
   const existing = await db().preorderEvent.findFirst({
-    where: { productId: target.productId, retailerId, eventType: "live" },
+    where: { productId: target.productId, retailerId },
     orderBy: { createdAt: "desc" },
   });
 
@@ -331,6 +367,9 @@ async function pollPreorders(pollMs: number) {
     data: {
       productId: target.productId,
       productName: target.productName,
+      sealedType: target.sealedType,
+      setName: target.setName,
+      releaseDate: target.releaseDate,
       retailerId,
       priceCents: itemPriceCents,
       shippingCents,
@@ -338,7 +377,7 @@ async function pollPreorders(pollMs: number) {
       totalCents,
       msrpCents: target.msrpCents,
       isMsrp: itemPriceCents <= target.msrpCents,
-      url: "https://www.cardkingdom.com/",
+      url: productUrl,
       eventType,
       isDemo: true,
     },
@@ -351,13 +390,13 @@ async function pollPreorders(pollMs: number) {
       status: "watching",
       lastPolledAt: now,
       nextPollAt: next,
-      message: "Watching sealed preorders",
+      message: "Watching new & unreleased sealed",
     },
     update: {
       status: "watching",
       lastPolledAt: now,
       nextPollAt: next,
-      message: "Watching sealed preorders",
+      message: "Watching new & unreleased sealed",
     },
   });
 
@@ -366,6 +405,7 @@ async function pollPreorders(pollMs: number) {
     event: {
       ...event,
       createdAt: event.createdAt.toISOString(),
+      releaseBucket: releaseBucket(target.releaseDate, now),
       retailerName:
         RETAILER_ALLOWLIST.find((r) => r.id === retailerId)?.name ?? retailerId,
     },
@@ -391,20 +431,28 @@ export function subscribePreorders(listener: (payload: unknown) => void) {
   return () => listeners.delete(listener);
 }
 
-export async function getPreorderSnapshot(pollMs = 60_000) {
+export async function getPreorderSnapshot(pollMs = 60_000, sealedTypes: string[] = []) {
   await db().watcherState.upsert({
     where: { id: "preorder" },
     create: { id: "preorder", status: "watching" },
     update: {},
   });
   const watcher = await db().watcherState.findUnique({ where: { id: "preorder" } });
+  const eligibleIds = preorderCatalog().map((p) => p.id);
+
   const events = await db().preorderEvent.findMany({
-    where: { eventType: { in: ["went_live", "price_change", "live"] } },
+    where: {
+      productId: { in: eligibleIds },
+      eventType: { in: ["went_live", "price_change", "live"] },
+      ...(sealedTypes.length > 0 ? { sealedType: { in: sealedTypes } } : {}),
+    },
     orderBy: { createdAt: "desc" },
-    take: 30,
+    take: 40,
   });
+
   return {
     pollMs,
+    sealedTypes,
     watcher: watcher
       ? {
           lastPolledAt: watcher.lastPolledAt?.toISOString() ?? null,
@@ -416,6 +464,7 @@ export async function getPreorderSnapshot(pollMs = 60_000) {
     events: events.map((e) => ({
       ...e,
       createdAt: e.createdAt.toISOString(),
+      releaseBucket: releaseBucket(e.releaseDate),
       retailerName:
         RETAILER_ALLOWLIST.find((r) => r.id === e.retailerId)?.name ?? e.retailerId,
     })),

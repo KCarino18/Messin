@@ -1,12 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatUsd } from "@/lib/money";
 import { desktop, openProductLink } from "@/lib/desktopClient";
+import { SealedTypeFilter } from "@/components/SealedTypeFilter";
+import { SEALED_TYPE_LABELS, SEALED_TYPES, type SealedTypeId } from "@/lib/sealedTypes";
 
 type PreorderEvent = {
   id: string;
   productName: string;
+  sealedType: string;
+  setName: string;
+  releaseDate: string;
+  releaseBucket?: "preorder" | "just_released" | "released";
   retailerName: string;
   priceCents: number;
   shippingCents: number;
@@ -32,12 +38,15 @@ type Props = {
   onCloseMobile?: () => void;
 };
 
+const DEFAULT_TYPES = SEALED_TYPES.map((t) => t.id);
+
 export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
   const [events, setEvents] = useState<PreorderEvent[]>([]);
   const [watcher, setWatcher] = useState<Watcher | null>(null);
   const [pollMs, setPollMs] = useState(60_000);
   const [now, setNow] = useState(0);
   const [flashId, setFlashId] = useState<string | null>(null);
+  const [sealedTypes, setSealedTypes] = useState<SealedTypeId[]>(DEFAULT_TYPES);
 
   useEffect(() => {
     const tick = window.setInterval(() => setNow(Date.now()), 1000);
@@ -52,7 +61,7 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
     let cancelled = false;
 
     async function loadSnapshot() {
-      const data = (await desktop().getPreorders()) as {
+      const data = (await desktop().getPreorders(sealedTypes)) as {
         events: PreorderEvent[];
         watcher: Watcher | null;
         pollMs: number;
@@ -64,6 +73,12 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
     }
 
     void loadSnapshot();
+    return () => {
+      cancelled = true;
+    };
+  }, [sealedTypes]);
+
+  useEffect(() => {
     const unsubscribe = desktop().onPreorder((raw) => {
       const data = raw as {
         type: string;
@@ -71,10 +86,26 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
         watcher?: Watcher & { pollMs?: number };
       };
       if (data.type !== "preorder" || !data.event) return;
+
+      if (
+        sealedTypes.length > 0 &&
+        !sealedTypes.includes(data.event.sealedType as SealedTypeId)
+      ) {
+        if (data.watcher) {
+          setWatcher({
+            lastPolledAt: data.watcher.lastPolledAt,
+            nextPollAt: data.watcher.nextPollAt,
+            status: data.watcher.status,
+            message: null,
+          });
+        }
+        return;
+      }
+
       setFlashId(data.event.id);
       setEvents((prev) => {
         const next = [data.event!, ...prev.filter((e) => e.id !== data.event!.id)];
-        return next.slice(0, 30);
+        return next.slice(0, 40);
       });
       if (data.watcher) {
         setWatcher({
@@ -86,18 +117,19 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
         if (data.watcher.pollMs) setPollMs(data.watcher.pollMs);
       }
     });
-
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
-  }, []);
+    return unsubscribe;
+  }, [sealedTypes]);
 
   const nextPollAt = watcher?.nextPollAt ?? null;
   let secondsToNext = Math.round(pollMs / 1000);
   if (nextPollAt && now > 0) {
     secondsToNext = Math.max(0, Math.ceil((new Date(nextPollAt).getTime() - now) / 1000));
   }
+
+  const visibleEvents = useMemo(() => {
+    if (sealedTypes.length === 0) return [];
+    return events.filter((e) => sealedTypes.includes(e.sealedType as SealedTypeId));
+  }, [events, sealedTypes]);
 
   const panel = (
     <aside className="flex h-full min-h-0 flex-col border-l border-[var(--line)] bg-[rgba(11,18,16,0.92)] backdrop-blur-md">
@@ -110,7 +142,7 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
             </h2>
           </div>
           <p className="mt-1 text-xs text-[var(--parchment)]/55">
-            Watching allowlisted US retailers every 1 minute
+            Only just-released + unreleased sets
           </p>
         </div>
         {onCloseMobile && (
@@ -124,30 +156,37 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
         )}
       </div>
 
-      <div className="space-y-1 border-b border-[var(--line)] px-4 py-3 text-xs text-[var(--parchment)]/60">
-        <p>
-          Status:{" "}
-          <span className="text-[var(--emerald-300)]">{watcher?.status ?? "starting"}</span>
-        </p>
-        <p>
-          Last check:{" "}
-          {watcher?.lastPolledAt
-            ? new Date(watcher.lastPolledAt).toLocaleTimeString()
-            : "—"}
-        </p>
-        <p>
-          Next check in:{" "}
-          <span className="font-semibold text-[var(--brass-300)]">{secondsToNext}s</span>
-        </p>
+      <div className="space-y-3 border-b border-[var(--line)] px-4 py-3">
+        <div className="space-y-1 text-xs text-[var(--parchment)]/60">
+          <p>
+            Status:{" "}
+            <span className="text-[var(--emerald-300)]">{watcher?.status ?? "starting"}</span>
+          </p>
+          <p>
+            Last check:{" "}
+            {watcher?.lastPolledAt
+              ? new Date(watcher.lastPolledAt).toLocaleTimeString()
+              : "—"}
+          </p>
+          <p>
+            Next check in:{" "}
+            <span className="font-semibold text-[var(--brass-300)]">{secondsToNext}s</span>
+          </p>
+        </div>
+        <SealedTypeFilter
+          compact
+          selected={sealedTypes}
+          onChange={setSealedTypes}
+        />
       </div>
 
       <ul className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3">
-        {events.length === 0 && (
+        {visibleEvents.length === 0 && (
           <li className="px-1 text-sm text-[var(--parchment)]/50">
-            Watching for sealed preorders to go live…
+            No matching new-set preorders for the selected sealed types.
           </li>
         )}
-        {events.map((event) => (
+        {visibleEvents.map((event) => (
           <li
             key={event.id}
             className={`rounded-md border border-[var(--line)] px-3 py-3 ${
@@ -157,10 +196,13 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
             <div className="flex items-center justify-between gap-2">
               <span
                 className={`text-[10px] uppercase tracking-widest ${
-                  event.isMsrp ? "text-[var(--emerald-300)]" : "text-[var(--brass-300)]"
+                  event.releaseBucket === "just_released"
+                    ? "text-[var(--brass-300)]"
+                    : "text-[var(--emerald-300)]"
                 }`}
               >
-                {event.isMsrp ? "MSRP" : "Above MSRP"} · {event.eventType.replaceAll("_", " ")}
+                {event.releaseBucket === "just_released" ? "Just released" : "Preorder"}
+                {event.isMsrp ? " · MSRP" : " · Above MSRP"}
               </span>
               <span className="text-[10px] text-[var(--parchment)]/40">
                 {new Date(event.createdAt).toLocaleTimeString()}
@@ -168,6 +210,10 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
             </div>
             <p className="mt-1 font-display text-sm text-[var(--parchment)]">
               {event.productName}
+            </p>
+            <p className="mt-1 text-xs text-[var(--parchment)]/55">
+              {event.setName} ·{" "}
+              {SEALED_TYPE_LABELS[event.sealedType as SealedTypeId] ?? event.sealedType}
             </p>
             <p className="mt-1 text-xs text-[var(--parchment)]/55">{event.retailerName}</p>
             <div className="mt-2 flex items-end justify-between gap-2">
@@ -180,13 +226,18 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
                   {event.msrpCents != null && ` · MSRP ${formatUsd(event.msrpCents)}`}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => void openProductLink(event.url)}
+              <a
+                href={event.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  void openProductLink(event.url);
+                }}
                 className="text-xs text-[var(--emerald-300)] underline-offset-2 hover:underline"
               >
-                Open
-              </button>
+                Open listing
+              </a>
             </div>
           </li>
         ))}
