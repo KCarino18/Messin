@@ -1,103 +1,57 @@
-const { app, BrowserWindow, shell, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
-const http = require("node:http");
-const { spawn } = require("node:child_process");
 
-const PORT = Number(process.env.MTG_BUDGET_PORT || 4310);
-const HOST = "127.0.0.1";
-
-let serverProcess = null;
 let mainWindow = null;
+let backend = null;
+let unsubscribePreorders = null;
 
-function resourcesRoot() {
+function resourcePath(...parts) {
   if (app.isPackaged) {
-    return process.resourcesPath;
+    return path.join(process.resourcesPath, ...parts);
   }
-  return path.join(__dirname, "..", ".desktop-resources");
+  return path.join(__dirname, "..", ...parts);
 }
 
-function ensureUserDatabase() {
+function loadBackend() {
+  const candidate = app.isPackaged
+    ? path.join(process.resourcesPath, "backend.dist.cjs")
+    : path.join(__dirname, "backend.dist.cjs");
+  // eslint-disable-next-line import/no-dynamic-require, global-require
+  return require(candidate);
+}
+
+async function initBackend() {
+  backend = loadBackend();
   const userData = app.getPath("userData");
-  fs.mkdirSync(userData, { recursive: true });
-  const targetDb = path.join(userData, "mtg-budget.db");
-  const templateDb = path.join(resourcesRoot(), "template.db");
-
-  if (!fs.existsSync(targetDb) && fs.existsSync(templateDb)) {
-    fs.copyFileSync(templateDb, targetDb);
-  }
-
-  return targetDb;
-}
-
-function resolveNodeBinary() {
-  const packaged = path.join(
-    resourcesRoot(),
-    process.platform === "win32" ? "node.exe" : "node",
-  );
-  if (fs.existsSync(packaged)) {
-    return packaged;
-  }
-  return process.platform === "win32" ? "node.exe" : "node";
-}
-
-function startNextServer() {
-  const root = resourcesRoot();
-  const serverDir = path.join(root, "app-server");
-  const serverEntry = path.join(serverDir, "server.js");
-  const dbPath = ensureUserDatabase();
-
-  if (!fs.existsSync(serverEntry)) {
-    throw new Error(`Missing packaged server at ${serverEntry}`);
-  }
-
-  const env = {
-    ...process.env,
-    NODE_ENV: "production",
-    PORT: String(PORT),
-    HOSTNAME: HOST,
-    DATABASE_URL: `file:${dbPath}`,
-    PREORDER_POLL_MS: process.env.PREORDER_POLL_MS || "60000",
-    TAX_RATE: process.env.TAX_RATE || "0.08",
-    PRICE_MODE: process.env.PRICE_MODE || "demo",
-  };
-
-  const nodeBin = resolveNodeBinary();
-  serverProcess = spawn(nodeBin, ["server.js"], {
-    cwd: serverDir,
-    env,
-    stdio: "inherit",
-    windowsHide: true,
+  const dbPath = path.join(userData, "mtg-budget.db");
+  const templateDbPath = resourcePath("template.db");
+  await backend.initBackend({
+    dbPath,
+    templateDbPath,
+    pollMs: Number(process.env.PREORDER_POLL_MS || 60_000),
   });
 
-  serverProcess.on("exit", (code) => {
-    if (code && code !== 0 && !app.isQuitting) {
-      dialog.showErrorBox(
-        "MTG Budget",
-        `The app server stopped unexpectedly (code ${code}).`,
-      );
-      app.quit();
+  unsubscribePreorders = backend.subscribePreorders((payload) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("preorders:event", payload);
     }
   });
 }
 
-function waitForServer(timeoutMs = 60000) {
-  const started = Date.now();
-  return new Promise((resolve, reject) => {
-    const ping = () => {
-      const req = http.get(`http://${HOST}:${PORT}/`, (res) => {
-        res.resume();
-        resolve();
-      });
-      req.on("error", () => {
-        if (Date.now() - started > timeoutMs) {
-          reject(new Error("Timed out waiting for MTG Budget server"));
-          return;
-        }
-        setTimeout(ping, 300);
-      });
-    };
-    ping();
+function registerIpc() {
+  ipcMain.handle("budget:get", async () => backend.getBudget());
+  ipcMain.handle("budget:set", async (_e, amountCents) => backend.setBudget(amountCents));
+  ipcMain.handle("deals:list", async (_e, budgetCents) => backend.getDeals(budgetCents));
+  ipcMain.handle("products:search", async (_e, q) => backend.searchProducts(q));
+  ipcMain.handle("products:offers", async (_e, productId) => backend.getOffers(productId));
+  ipcMain.handle("preorders:snapshot", async () => backend.getPreorderSnapshot());
+  ipcMain.handle("shell:openExternal", async (_e, url) => {
+    if (typeof url === "string" && /^https?:\/\//i.test(url)) {
+      await shell.openExternal(url);
+      return true;
+    }
+    return false;
   });
 }
 
@@ -109,23 +63,42 @@ function createWindow() {
     minHeight: 720,
     title: "MTG Budget",
     backgroundColor: "#0b1210",
+    autoHideMenuBar: true,
+    show: false,
     webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
     },
   });
 
-  mainWindow.loadURL(`http://${HOST}:${PORT}`);
+  mainWindow.once("ready-to-show", () => {
+    mainWindow?.show();
+  });
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    if (/^https?:\/\//i.test(url)) {
+      void shell.openExternal(url);
+    }
     return { action: "deny" };
   });
+
+  if (app.isPackaged) {
+    mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+  } else {
+    const devUrl = process.env.VITE_DEV_SERVER_URL || "http://127.0.0.1:5173";
+    mainWindow.loadURL(devUrl);
+  }
 }
 
 async function boot() {
   try {
-    startNextServer();
-    await waitForServer();
+    if (process.platform === "win32") {
+      app.setAppUserModelId("com.mtgbudget.app");
+    }
+    await initBackend();
+    registerIpc();
     createWindow();
   } catch (error) {
     dialog.showErrorBox(
@@ -138,23 +111,25 @@ async function boot() {
 
 app.whenReady().then(() => {
   void boot();
-
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      void boot();
+      createWindow();
     }
   });
 });
 
 app.on("before-quit", () => {
-  app.isQuitting = true;
-  if (serverProcess && !serverProcess.killed) {
-    serverProcess.kill();
+  unsubscribePreorders?.();
+  if (backend?.shutdownBackend) {
+    void backend.shutdownBackend();
   }
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+  if (process.platform !== "darwin") app.quit();
 });
+
+// Keep reference for packaging tools that expect template copy helper
+if (!fs.existsSync(path.join(__dirname, "preload.cjs"))) {
+  throw new Error("Missing electron preload");
+}

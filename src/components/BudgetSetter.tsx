@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { formatUsd } from "@/lib/money";
+import { desktop } from "@/lib/desktopClient";
 
 type Props = {
   initialCents: number;
@@ -19,13 +20,7 @@ export function BudgetSetter({ initialCents, onBudgetChange }: Props) {
     if (!Number.isFinite(amount) || amount < 500) return;
 
     startTransition(async () => {
-      const res = await fetch("/api/budget", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amountCents: amount }),
-      });
-      if (!res.ok) return;
-      const data = (await res.json()) as { amountCents: number };
+      const data = await desktop().setBudget(amount);
       onBudgetChange(data.amountCents);
       setSaved(true);
       window.setTimeout(() => setSaved(false), 1600);

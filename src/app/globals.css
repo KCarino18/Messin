@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  --font-cinzel: "Cinzel", ui-serif, Georgia, serif;
+  --font-manrope: "Manrope", system-ui, sans-serif;
   --ink-950: #0b1210;
   --ink-900: #101a16;
   --ink-800: #17241e;

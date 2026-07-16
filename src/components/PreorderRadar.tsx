@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { formatUsd } from "@/lib/money";
+import { desktop, openProductLink } from "@/lib/desktopClient";
 
 type PreorderEvent = {
   id: string;
@@ -48,13 +49,10 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
   }, []);
 
   useEffect(() => {
-    let source: EventSource | null = null;
     let cancelled = false;
 
     async function loadSnapshot() {
-      const res = await fetch("/api/preorders");
-      if (!res.ok) return;
-      const data = (await res.json()) as {
+      const data = (await desktop().getPreorders()) as {
         events: PreorderEvent[];
         watcher: Watcher | null;
         pollMs: number;
@@ -66,49 +64,32 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
     }
 
     void loadSnapshot();
-
-    source = new EventSource("/api/preorders/stream");
-    source.onmessage = (msg) => {
-      try {
-        const data = JSON.parse(msg.data) as {
-          type: string;
-          events?: PreorderEvent[];
-          event?: PreorderEvent;
-          watcher?: Watcher & { pollMs?: number };
-          pollMs?: number;
-        };
-
-        if (data.type === "snapshot") {
-          if (data.events) setEvents(data.events);
-          if (data.watcher) setWatcher(data.watcher);
-          if (data.pollMs) setPollMs(data.pollMs);
-          return;
-        }
-
-        if (data.type === "preorder" && data.event) {
-          setFlashId(data.event.id);
-          setEvents((prev) => {
-            const next = [data.event!, ...prev.filter((e) => e.id !== data.event!.id)];
-            return next.slice(0, 30);
-          });
-          if (data.watcher) {
-            setWatcher({
-              lastPolledAt: data.watcher.lastPolledAt,
-              nextPollAt: data.watcher.nextPollAt,
-              status: data.watcher.status,
-              message: null,
-            });
-          }
-          if (data.watcher?.pollMs) setPollMs(data.watcher.pollMs);
-        }
-      } catch {
-        // ignore malformed events
+    const unsubscribe = desktop().onPreorder((raw) => {
+      const data = raw as {
+        type: string;
+        event?: PreorderEvent;
+        watcher?: Watcher & { pollMs?: number };
+      };
+      if (data.type !== "preorder" || !data.event) return;
+      setFlashId(data.event.id);
+      setEvents((prev) => {
+        const next = [data.event!, ...prev.filter((e) => e.id !== data.event!.id)];
+        return next.slice(0, 30);
+      });
+      if (data.watcher) {
+        setWatcher({
+          lastPolledAt: data.watcher.lastPolledAt,
+          nextPollAt: data.watcher.nextPollAt,
+          status: data.watcher.status,
+          message: null,
+        });
+        if (data.watcher.pollMs) setPollMs(data.watcher.pollMs);
       }
-    };
+    });
 
     return () => {
       cancelled = true;
-      source?.close();
+      unsubscribe();
     };
   }, []);
 
@@ -129,7 +110,7 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
             </h2>
           </div>
           <p className="mt-1 text-xs text-[var(--parchment)]/55">
-            Polling allowlisted US retailers every 1 minute
+            Watching allowlisted US retailers every 1 minute
           </p>
         </div>
         {onCloseMobile && (
@@ -149,7 +130,7 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
           <span className="text-[var(--emerald-300)]">{watcher?.status ?? "starting"}</span>
         </p>
         <p>
-          Last poll:{" "}
+          Last check:{" "}
           {watcher?.lastPolledAt
             ? new Date(watcher.lastPolledAt).toLocaleTimeString()
             : "—"}
@@ -199,14 +180,13 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
                   {event.msrpCents != null && ` · MSRP ${formatUsd(event.msrpCents)}`}
                 </p>
               </div>
-              <a
-                href={event.url}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => void openProductLink(event.url)}
                 className="text-xs text-[var(--emerald-300)] underline-offset-2 hover:underline"
               >
                 Open
-              </a>
+              </button>
             </div>
           </li>
         ))}

@@ -1,6 +1,7 @@
 "use client";
 
 import { formatUsd } from "@/lib/money";
+import { openProductLink } from "@/lib/desktopClient";
 
 export type Deal = {
   product: {
@@ -88,14 +89,13 @@ export function DealList({ deals, budgetCents, loading, mode }: Props) {
                   {formatUsd(deal.offer.shippingCents)} · tax est.{" "}
                   {formatUsd(deal.offer.taxCents)}
                 </p>
-                <a
-                  href={deal.offer.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => void openProductLink(deal.offer.url)}
                   className="mt-2 inline-block text-sm text-[var(--emerald-300)] underline-offset-4 hover:underline"
                 >
                   Buy at {deal.offer.retailerName}
-                </a>
+                </button>
               </div>
             </div>
           </li>

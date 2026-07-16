@@ -9,29 +9,26 @@ TARGET="${1:-current}"
 echo "==> Installing deps"
 npm ci
 
-echo "==> Generating Prisma client + building Next (standalone)"
+echo "==> Preparing database + desktop bundles"
 export DATABASE_URL="${DATABASE_URL:-file:./prisma/dev.db}"
+printf 'DATABASE_URL=%s\nPREORDER_POLL_MS=60000\nTAX_RATE=0.08\nPRICE_MODE=demo\n' "$DATABASE_URL" > .env
 npx prisma generate
 npx prisma migrate deploy
 npm run db:seed
-npm run build
+node scripts/prepare-desktop.mjs
 
-echo "==> Preparing desktop resources (Node runtime + server + DB)"
+echo "==> Packaging Electron installer"
 case "$TARGET" in
   win|windows)
-    DESKTOP_PLATFORM=win32 DESKTOP_ARCH=x64 node scripts/prepare-desktop.mjs
-    npx electron-builder --win portable nsis --x64 --publish never
+    npx electron-builder --win nsis portable --x64 --publish never
     ;;
   linux)
-    DESKTOP_PLATFORM=linux DESKTOP_ARCH=x64 node scripts/prepare-desktop.mjs
     npx electron-builder --linux AppImage --x64 --publish never
     ;;
   mac|darwin)
-    DESKTOP_PLATFORM=darwin DESKTOP_ARCH="${DESKTOP_ARCH:-$(node -p process.arch)}" node scripts/prepare-desktop.mjs
     npx electron-builder --mac dmg --publish never
     ;;
   current)
-    node scripts/prepare-desktop.mjs
     npx electron-builder --publish never
     ;;
   *)
