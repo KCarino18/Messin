@@ -1,6 +1,6 @@
 {
   "name": "mtg-budget",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "MTG Budget desktop app for sealed Magic product deals",
   "author": "MTG Budget",
@@ -65,25 +65,17 @@
       "electron/preload.cjs",
       "electron/backend.dist.cjs",
       "electron/renderer/**/*",
-      "src/generated/prisma/**/*",
-      "package.json",
-      "node_modules/better-sqlite3/**/*",
-      "node_modules/@prisma/**/*",
-      "node_modules/prisma/**/*"
+      "package.json"
     ],
     "extraResources": [
       {
         "from": ".desktop-resources/template.db",
         "to": "template.db"
-      },
-      {
-        "from": "electron/backend.dist.cjs",
-        "to": "backend.dist.cjs"
       }
     ],
     "asar": true,
     "asarUnpack": [
-      "node_modules/better-sqlite3/**/*",
+      "**/node_modules/better-sqlite3/**/*",
       "**/*.node"
     ],
     "win": {
