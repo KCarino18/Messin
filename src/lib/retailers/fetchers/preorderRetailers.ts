@@ -58,8 +58,19 @@ function sealedSlugVariants(product: ProductSeed): string[] {
       return [`${slug}-play-booster-box`, `${slug}-play-booster-display`];
     case "collector_booster_display":
       return [`${slug}-collector-booster-box`, `${slug}-collector-booster-display`];
+    case "collector_booster_omega":
+      return [
+        `${slug}-collector-booster-omega`,
+        `${slug}-collector-booster-omega-pack`,
+        `mtg-${slug}-collector-booster-omega`,
+      ];
     case "bundle":
       return [`${slug}-bundle`];
+    case "gift_bundle":
+      return [`${slug}-gift-bundle`];
+    case "specialty_bundle":
+    case "scene_box":
+      return [setSlug(product.name), `mtg-${setSlug(product.name)}`];
     default:
       return [setSlug(product.name)];
   }

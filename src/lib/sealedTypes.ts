@@ -6,7 +6,11 @@
 export const SEALED_TYPES = [
   { id: "play_booster_box", label: "Play Booster Box" },
   { id: "collector_booster_display", label: "Collector Booster Display" },
+  { id: "collector_booster_omega", label: "Collector Booster Omega" },
   { id: "bundle", label: "Bundle" },
+  { id: "specialty_bundle", label: "Specialty Bundle" },
+  { id: "gift_bundle", label: "Gift Bundle" },
+  { id: "scene_box", label: "Scene Box" },
   { id: "commander_deck", label: "Commander Deck" },
   { id: "commander_deck_display", label: "Commander Deck Display" },
 ] as const;
