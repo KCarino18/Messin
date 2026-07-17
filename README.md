@@ -23,7 +23,15 @@ Linux AppImage and macOS DMG are also published on the same releases page when a
 
 ## Allowlisted retailers
 
-Card Kingdom · CoolStuffInc · Channel Fireball · StarCityGames · GameNerdz · Amazon (sold/shipped by Amazon) · Target · Walmart (sold/shipped by Walmart) · TCGPlayer Marketplace (reputation-filtered)
+**Core:** Card Kingdom · CoolStuffInc · Channel Fireball · StarCityGames · GameNerdz · Forge & Fire · Flipside Gaming · Amazon (sold/shipped by Amazon) · Target · Walmart (sold/shipped by Walmart) · TCGPlayer Marketplace (reputation-filtered)
+
+**Sealed specialists:** Miniature Market · Troll and Toad · Mox Boarding House · Cardhaus · Millennium Games · Gaming Etc · Face to Face Games · ABU Games · Pastimes · Ideal808
+
+**Big-box / comics:** GameStop · Best Buy · Barnes & Noble · HobbyTown · Midtown Comics · Forbidden Planet
+
+**More LGS / online:** Top Deck Hero · Untapped Games · Mythic Store · Card Sphere · Adventure Games · Red Castle · TableTop Gaming Center · Critical Hit · Collector Store · Game Quest · Enchanted Grounds · Three Kingdoms · Gamers Guild AZ · Gamezenter · Shuffle & Cut · Nexus TCG · Hall of Heroes · Springfield Games · TCG Cafe
+
+**NA / UK sealed:** 401 Games · Wizard's Tower · High Level Games · Magic Madhouse · Manaleak · TCG Republic
 
 ## Develop the desktop app
 

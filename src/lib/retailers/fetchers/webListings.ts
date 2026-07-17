@@ -1,34 +1,42 @@
+import {
+  DEEP_SEARCH_RETAILERS,
+  RETAILER_BY_ID,
+  retailerName,
+  type RetailerId,
+} from "../allowlist";
 import { fetchText } from "../http";
 import { listingsFromJsonLd, listingFromOgMeta } from "../parsePrice";
 import {
   searchQueriesForProduct,
   titleMatchesProduct,
 } from "../productMatch";
-import type { RetailerId } from "../allowlist";
 import type { ProductSeed, RawOffer } from "../types";
-
-const SITE_TO_RETAILER: Array<{ site: string; retailerId: RetailerId }> = [
-  { site: "cardkingdom.com", retailerId: "card_kingdom" },
-  { site: "coolstuffinc.com", retailerId: "coolstuffinc" },
-  { site: "gamenerdz.com", retailerId: "gamenerdz" },
-  { site: "starcitygames.com", retailerId: "starcitygames" },
-  { site: "channelfireball.com", retailerId: "channel_fireball" },
-  { site: "amazon.com", retailerId: "amazon" },
-  { site: "target.com", retailerId: "target" },
-  { site: "walmart.com", retailerId: "walmart" },
-  { site: "tcgplayer.com", retailerId: "tcgplayer" },
-  { site: "forgeandfiregaming.com", retailerId: "forge_and_fire" },
-  { site: "flipsidegaming.com", retailerId: "flipside_gaming" },
-];
 
 const cache = new Map<string, { at: number; urls: string[] }>();
 const CACHE_TTL = 30 * 60 * 1000;
 
+/** Cap concurrent DuckDuckGo site searches per product load. */
+const MAX_SEARCH_SITES = 18;
+/** Cap product pages opened per product load. */
+const MAX_PRODUCT_PAGES = 24;
+
 function retailerForUrl(url: string): RetailerId | null {
   try {
     const host = new URL(url).hostname.replace(/^www\./, "");
-    const hit = SITE_TO_RETAILER.find((s) => host.endsWith(s.site));
-    return hit?.retailerId ?? null;
+    for (const retailer of DEEP_SEARCH_RETAILERS) {
+      const domain = retailer.domain.replace(/^www\./, "");
+      if (host === domain || host.endsWith(`.${domain}`) || host.endsWith(domain)) {
+        return retailer.id;
+      }
+    }
+    // Also match allowlisted domains that may not be deepSearch-flagged.
+    for (const retailer of Object.values(RETAILER_BY_ID)) {
+      const domain = retailer.domain.replace(/^www\./, "");
+      if (host === domain || host.endsWith(`.${domain}`) || host.endsWith(domain)) {
+        return retailer.id;
+      }
+    }
+    return null;
   } catch {
     return null;
   }
@@ -38,7 +46,10 @@ function shippingFor(retailerId: RetailerId, itemCents: number): number {
   if (
     retailerId === "amazon" ||
     retailerId === "target" ||
-    retailerId === "walmart"
+    retailerId === "walmart" ||
+    retailerId === "best_buy" ||
+    retailerId === "game_stop" ||
+    retailerId === "barnes_and_noble"
   ) {
     return 0;
   }
@@ -63,9 +74,11 @@ export async function searchRetailerUrls(
     try {
       const decoded = decodeURIComponent(match[1]!);
       if (!decoded.startsWith("http")) continue;
-      if (!decoded.includes(site)) continue;
+      if (!decoded.includes(site.replace(/^www\./, ""))) continue;
       // Skip non-product noise
-      if (/\/search\?|\/browse\/|\/c\/|\/catalog\/search/i.test(decoded)) continue;
+      if (/\/search\?|\/browse\/|\/c\/|\/catalog\/search|\/search\/\?/i.test(decoded)) {
+        continue;
+      }
       if (!urls.includes(decoded)) urls.push(decoded);
     } catch {
       // ignore bad encoding
@@ -93,6 +106,16 @@ function gamenerdzCandidateUrls(product: ProductSeed): string[] {
       ];
     case "bundle":
       return [`${base}-${slug}-bundle`];
+    case "gift_bundle":
+      return [`${base}-${slug}-gift-bundle`];
+    case "specialty_bundle":
+      return [
+        `${base}-${slug}-beam-me-up-bundle`,
+        `${base}-${slug}-codex-bundle`,
+        `${base}-${slug}-pizza-bundle`,
+      ];
+    case "collector_booster_omega":
+      return [`${base}-${slug}-collector-booster-omega`];
     default:
       return [];
   }
@@ -110,6 +133,26 @@ async function listingsFromPage(pageUrl: string) {
   return og ? [og] : [];
 }
 
+function searchSitePriority(domain: string): number {
+  const hot = [
+    "gamenerdz.com",
+    "forgeandfiregaming.com",
+    "flipsidegaming.com",
+    "miniaturemarket.com",
+    "trollandtoad.com",
+    "moxboardinghouse.com",
+    "cardhaus.com",
+    "starcitygames.com",
+    "coolstuffinc.com",
+    "abugames.com",
+    "facetofacegames.com",
+    "amazon.com",
+    "cardkingdom.com",
+  ];
+  const idx = hot.indexOf(domain.replace(/^www\./, ""));
+  return idx === -1 ? 100 : idx;
+}
+
 /**
  * Surf allowlisted retailer sites (via search + known URL patterns),
  * open real product pages, and read prices from the page markup.
@@ -122,33 +165,33 @@ export async function fetchWebRetailerOffers(
 
   for (const u of gamenerdzCandidateUrls(product)) urlCandidates.add(u);
 
-  // Search high-signal stores (DuckDuckGo HTML). Keep the fan-out bounded.
-  const searchSites = [
-    "gamenerdz.com",
-    "forgeandfiregaming.com",
-    "flipsidegaming.com",
-    "amazon.com",
-    "coolstuffinc.com",
-    "starcitygames.com",
-  ];
+  const searchSites = [...DEEP_SEARCH_RETAILERS]
+    .sort((a, b) => searchSitePriority(a.domain) - searchSitePriority(b.domain))
+    .slice(0, MAX_SEARCH_SITES)
+    .map((r) => r.domain.replace(/^www\./, ""));
 
-  await Promise.all(
-    searchSites.map(async (site) => {
-      const q = queries[0];
-      if (!q) return;
-      try {
-        const found = await searchRetailerUrls(q, site);
-        for (const u of found.slice(0, 2)) urlCandidates.add(u);
-      } catch {
-        // ignore one site failure
-      }
-    }),
-  );
+  const q = queries[0];
+  if (q) {
+    // Batch site searches to avoid stampeding DuckDuckGo.
+    for (let i = 0; i < searchSites.length; i += 6) {
+      const batch = searchSites.slice(i, i + 6);
+      await Promise.all(
+        batch.map(async (site) => {
+          try {
+            const found = await searchRetailerUrls(q, site);
+            for (const u of found.slice(0, 2)) urlCandidates.add(u);
+          } catch {
+            // ignore one site failure
+          }
+        }),
+      );
+    }
+  }
 
   const offers: RawOffer[] = [];
   const seen = new Set<string>();
 
-  const pages = [...urlCandidates].slice(0, 12);
+  const pages = [...urlCandidates].slice(0, MAX_PRODUCT_PAGES);
   const results = await Promise.allSettled(pages.map((u) => listingsFromPage(u)));
 
   for (let i = 0; i < results.length; i++) {
@@ -160,28 +203,13 @@ export async function fetchWebRetailerOffers(
 
     for (const listing of result.value) {
       if (!titleMatchesProduct(listing.name, product)) continue;
-      // Prefer in-stock; still keep preorder/OOS if it's the only signal? keep all in-stock + preorder
       const key = `${retailerId}|${listing.url}|${listing.priceCents}`;
       if (seen.has(key)) continue;
       seen.add(key);
 
-      const sellerNames: Record<RetailerId, string> = {
-        amazon: "Amazon.com",
-        target: "Target",
-        walmart: "Walmart",
-        tcgplayer: "TCGPlayer",
-        card_kingdom: "Card Kingdom",
-        gamenerdz: "GameNerdz",
-        coolstuffinc: "CoolStuffInc",
-        starcitygames: "StarCityGames",
-        channel_fireball: "Channel Fireball",
-        forge_and_fire: "Forge & Fire Gaming",
-        flipside_gaming: "Flipside Gaming",
-      };
-
       offers.push({
         retailerId,
-        sellerName: sellerNames[retailerId],
+        sellerName: retailerName(retailerId),
         itemPriceCents: listing.priceCents,
         shippingCents: shippingFor(retailerId, listing.priceCents),
         url: listing.url,

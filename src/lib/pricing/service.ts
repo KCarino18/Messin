@@ -11,6 +11,8 @@ function toSeed(product: {
   name: string;
   setName: string;
   category: string;
+  sealedType?: string;
+  releaseDate?: string;
   msrpCents: number;
   imageUrl: string | null;
 }): ProductSeed {
@@ -19,6 +21,8 @@ function toSeed(product: {
     name: product.name,
     setName: product.setName,
     category: product.category as ProductSeed["category"],
+    sealedType: (product.sealedType as ProductSeed["sealedType"]) ?? "play_booster_box",
+    releaseDate: product.releaseDate ?? "2099-01-01",
     msrpCents: product.msrpCents,
     imageUrl: product.imageUrl ?? undefined,
   };
