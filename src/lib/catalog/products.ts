@@ -24,6 +24,12 @@ export const SEALED_CATALOG: ProductSeed[] = [
     packCount: 30,
     tcgplayerGroupId: 24553,
     tcgplayerProductId: 675603,
+    listingUrls: {
+      card_kingdom:
+        "https://www.cardkingdom.com/mtg-sealed/marvel-super-heroes-play-booster-box",
+      starcitygames:
+        "https://starcitygames.com/marvel-super-heroes-play-booster-box-sld-mtg-bbx-mshplay-en/",
+    },
   },
   {
     id: "msh-collector-booster-display",
@@ -98,6 +104,19 @@ export const SEALED_CATALOG: ProductSeed[] = [
     packCount: 30,
     tcgplayerGroupId: 24683,
     tcgplayerProductId: 692960,
+    listingUrls: {
+      starcitygames:
+        "https://starcitygames.com/the-hobbit-play-booster-box-sld-mtg-bbx-hobplay-en/",
+      miniature_market:
+        "https://www.miniaturemarket.com/MTG-The-Hobbit-Play-Booster-Box-30-Preorder/WOCD5658-BOX",
+      card_kingdom:
+        "https://www.cardkingdom.com/mtg-sealed/the-hobbit-play-booster-box",
+      flipside_gaming:
+        "https://flipsidegaming.com/products/mtg-the-hobbit-play-booster-box",
+      forge_and_fire:
+        "https://forgeandfiregaming.com/magic-the-gathering/the-hobbit-play-booster-display/",
+      amazon: "https://www.amazon.com/dp/B0GXCBJG9L",
+    },
   },
   {
     id: "hobbit-collector-booster-display",
@@ -110,6 +129,12 @@ export const SEALED_CATALOG: ProductSeed[] = [
     packCount: 12,
     tcgplayerGroupId: 24683,
     tcgplayerProductId: 692963,
+    listingUrls: {
+      flipside_gaming:
+        "https://flipsidegaming.com/products/mtg-the-hobbit-collector-booster-box",
+      forge_and_fire:
+        "https://forgeandfiregaming.com/magic-the-gathering/the-hobbit-collector-booster-booster-display/",
+    },
   },
   {
     id: "hobbit-bundle",
@@ -122,6 +147,10 @@ export const SEALED_CATALOG: ProductSeed[] = [
     packCount: 9,
     tcgplayerGroupId: 24683,
     tcgplayerProductId: 692966,
+    listingUrls: {
+      miniature_market:
+        "https://www.miniaturemarket.com/MTG-The-Hobbit-Bundle-Preorder/WOCD5664",
+    },
   },
   {
     id: "hobbit-gift-bundle",
@@ -134,6 +163,10 @@ export const SEALED_CATALOG: ProductSeed[] = [
     packCount: 10,
     tcgplayerGroupId: 24683,
     tcgplayerProductId: 692971,
+    listingUrls: {
+      miniature_market:
+        "https://www.miniaturemarket.com/MTG-The-Hobbit-Gift-Bundle-Preorder/WOCD5663",
+    },
   },
   {
     id: "hobbit-scene-box-crack-the-plates",

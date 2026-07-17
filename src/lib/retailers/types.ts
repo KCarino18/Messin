@@ -45,4 +45,9 @@ export type ProductSeed = {
   tcgplayerGroupId?: number;
   /** TCGPlayer product id for sealed SKU market/low prices. */
   tcgplayerProductId?: number;
-};
+  /**
+   * Known direct product-page URLs for stores with ugly/unsearchable slugs.
+   * Used when DuckDuckGo / on-site search can't discover the page.
+   */
+  listingUrls?: Partial<Record<string, string>>;
+}

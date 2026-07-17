@@ -1,4 +1,10 @@
-import { PREORDER_WATCH_RETAILERS, type RetailerId } from "../allowlist";
+import {
+  PREORDER_WATCH_RETAILERS,
+  RETAILER_BY_ID,
+  retailerName,
+  type RetailerId,
+} from "../allowlist";
+import { fetchCardKingdomOffers } from "./cardKingdom";
 import { fetchText } from "../http";
 import { listingsFromJsonLd, listingFromOgMeta } from "../parsePrice";
 import {
@@ -9,14 +15,22 @@ import {
 import { searchRetailerUrls } from "./webListings";
 import type { ProductSeed, RawOffer } from "../types";
 
+const FREE_SHIP: RetailerId[] = [
+  "amazon",
+  "target",
+  "walmart",
+  "best_buy",
+  "game_stop",
+  "barnes_and_noble",
+];
+
 function shippingFor(retailerId: RetailerId, itemCents: number): number {
-  if (retailerId === "amazon") return 0;
+  if (FREE_SHIP.includes(retailerId)) return 0;
   return itemCents >= 5000 ? 0 : 399;
 }
 
 function toOffer(
   retailerId: RetailerId,
-  sellerName: string,
   listing: {
     name: string;
     priceCents: number;
@@ -28,7 +42,7 @@ function toOffer(
 ): RawOffer {
   return {
     retailerId,
-    sellerName,
+    sellerName: retailerName(retailerId),
     itemPriceCents: listing.priceCents,
     shippingCents: shippingFor(retailerId, listing.priceCents),
     url: listing.url,
@@ -77,28 +91,47 @@ function sealedSlugVariants(product: ProductSeed): string[] {
 }
 
 async function fetchGameNerdz(product: ProductSeed): Promise<RawOffer[]> {
-  const urls = sealedSlugVariants(product).map(
-    (s) => `https://www.gamenerdz.com/magic-the-gathering-${s}`,
-  );
+  const urls = sealedSlugVariants(product).flatMap((s) => [
+    `https://www.gamenerdz.com/magic-the-gathering-${s}`,
+    `https://www.gamenerdz.com/${s}`,
+  ]);
+
+  // GameNerdz search is JS-rendered; still try DDG for a real product URL.
+  for (const q of searchQueriesForProduct(product).slice(0, 1)) {
+    try {
+      const found = await searchRetailerUrls(q, "gamenerdz.com");
+      urls.push(...found.slice(0, 4));
+    } catch {
+      // ignore
+    }
+  }
+
   const offers: RawOffer[] = [];
-  for (const url of urls) {
-    for (const listing of await listingsFromProductPage(url)) {
+  const seen = new Set<string>();
+  for (const url of [...new Set(urls)].slice(0, 8)) {
+    let listings = await listingsFromProductPage(url);
+    if (listings.length === 0) {
+      const fallback = await scrapeHtmlPrice(url, product);
+      if (fallback) listings = [fallback];
+    }
+    for (const listing of listings) {
       if (!titleMatchesProduct(listing.name, product)) continue;
-      offers.push(toOffer("gamenerdz", "GameNerdz", listing));
+      const key = `${listing.url}|${listing.priceCents}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      offers.push(toOffer("gamenerdz", listing));
     }
   }
   return offers;
 }
 
 async function fetchForgeAndFire(product: ProductSeed): Promise<RawOffer[]> {
-  const urls = [
-    ...sealedSlugVariants(product).map(
-      (s) => `https://forgeandfiregaming.com/magic-the-gathering/${s}/`,
-    ),
-    ...searchQueriesForProduct(product).slice(0, 1).flatMap(() => []),
-  ];
+  // Forge often uses "display" instead of "box" in the path.
+  const urls = sealedSlugVariants(product).flatMap((s) => [
+    `https://forgeandfiregaming.com/magic-the-gathering/${s}/`,
+    `https://forgeandfiregaming.com/magic-the-gathering/${s.replace(/-box$/, "-display")}/`,
+  ]);
 
-  // Also discover via search engine + their site search pages are weak; DDG helps.
   for (const q of searchQueriesForProduct(product).slice(0, 1)) {
     try {
       const found = await searchRetailerUrls(q, "forgeandfiregaming.com");
@@ -110,50 +143,33 @@ async function fetchForgeAndFire(product: ProductSeed): Promise<RawOffer[]> {
 
   const offers: RawOffer[] = [];
   const seen = new Set<string>();
-  for (const url of [...new Set(urls)]) {
-    for (const listing of await listingsFromProductPage(url)) {
+  for (const url of [...new Set(urls)].slice(0, 8)) {
+    let listings = await listingsFromProductPage(url);
+    if (listings.length === 0) {
+      const fallback = await scrapeHtmlPrice(url, product);
+      if (fallback) listings = [fallback];
+    }
+    for (const listing of listings) {
       if (!titleMatchesProduct(listing.name, product)) continue;
       const key = `${listing.url}|${listing.priceCents}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      offers.push(toOffer("forge_and_fire", "Forge & Fire Gaming", listing));
+      offers.push(toOffer("forge_and_fire", listing));
     }
   }
   return offers;
 }
 
 async function fetchFlipside(product: ProductSeed): Promise<RawOffer[]> {
-  const handles = sealedSlugVariants(product).flatMap((s) => [
-    `mtg-${s}`,
-    s,
-  ]);
+  const handles = sealedSlugVariants(product).flatMap((s) => [`mtg-${s}`, s]);
   const urls = handles.map((h) => `https://flipsidegaming.com/products/${h}`);
 
-  // Shopify search HTML embeds product options with handle + price (cents).
   for (const q of searchQueriesForProduct(product).slice(0, 1)) {
     try {
       const res = await fetchText(
         `https://flipsidegaming.com/search?q=${encodeURIComponent(q)}`,
       );
       if (!res.ok) continue;
-      for (const match of res.text.matchAll(
-        /data-product-options='(\{.*?\})'/g,
-      )) {
-        try {
-          const opt = JSON.parse(match[1]!) as {
-            handle?: string;
-            price?: number;
-            available?: boolean;
-            isPreoder?: boolean;
-          };
-          if (!opt.handle || !opt.price || opt.price < 500) continue;
-          const pageUrl = `https://flipsidegaming.com/products/${opt.handle}`;
-          // Title comes from handle; refine via product page when it matches sealed shape.
-          urls.push(pageUrl);
-        } catch {
-          // ignore bad option blob
-        }
-      }
       for (const match of res.text.matchAll(/href="(\/products\/[^"?]+)/g)) {
         urls.push(`https://flipsidegaming.com${match[1]}`);
       }
@@ -170,14 +186,180 @@ async function fetchFlipside(product: ProductSeed): Promise<RawOffer[]> {
       const key = `${listing.url}|${listing.priceCents}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      offers.push(toOffer("flipside_gaming", "Flipside Gaming", listing));
+      offers.push(toOffer("flipside_gaming", listing));
     }
   }
   return offers;
 }
 
+/** Pull product hrefs from a retailer's own search HTML (avoids DuckDuckGo). */
+async function urlsFromSiteSearch(
+  searchUrl: string,
+  hostIncludes: string,
+): Promise<string[]> {
+  const res = await fetchText(searchUrl);
+  if (!res.ok) return [];
+  const urls: string[] = [];
+  for (const match of res.text.matchAll(/href=["']([^"']+)["']/gi)) {
+    let href = match[1]!;
+    if (href.startsWith("//")) href = `https:${href}`;
+    if (href.startsWith("/")) {
+      try {
+        href = new URL(href, res.url).toString();
+      } catch {
+        continue;
+      }
+    }
+    if (!/^https?:\/\//i.test(href)) continue;
+    try {
+      const host = new URL(href).hostname;
+      if (!host.includes(hostIncludes)) continue;
+    } catch {
+      continue;
+    }
+    if (/\/search|\/catalogsearch\/result|\/browse|\/cart|\/account/i.test(href)) {
+      continue;
+    }
+    if (!/product|mtg|magic|booster|bundle|sealed|\/p\/|\/dp\//i.test(href)) {
+      // Keep Magento/Shopify style product paths even without those words.
+      if (!/\/[a-z0-9-]{8,}\.html|\/products\//i.test(href)) continue;
+    }
+    const clean = href.split("#")[0]!.split("?")[0]!;
+    if (!urls.includes(clean)) urls.push(clean);
+  }
+  return urls.slice(0, 8);
+}
+
+function onSiteSearchUrls(product: ProductSeed, retailerId: RetailerId): string[] {
+  const q = encodeURIComponent(searchQueriesForProduct(product)[0] ?? product.name);
+  switch (retailerId) {
+    case "miniature_market":
+      return [`https://www.miniaturemarket.com/catalogsearch/result/?q=${q}`];
+    case "gamenerdz":
+      return [
+        `https://www.gamenerdz.com/search.php?section=product&search_query=${q}`,
+      ];
+    case "starcitygames":
+      return [`https://starcitygames.com/search/?search_query=${q}`];
+    case "coolstuffinc":
+      return [
+        `https://www.coolstuffinc.com/main_search.php?Pa=searchOnName&page=1&resultsPerPage=25&q=${q}`,
+      ];
+    case "cardhaus":
+      return [`https://www.cardhaus.com/search?q=${q}`];
+    case "troll_and_toad":
+      return [
+        `https://www.trollandtoad.com/category.php?selected-cat=0&search-words=${q}`,
+      ];
+    case "mox_boarding_house":
+      return [`https://www.moxboardinghouse.com/search?q=${q}`];
+    case "abu_games":
+      return [`https://abugames.com/search?q=${q}`];
+    case "face_to_face":
+      return [`https://www.facetofacegames.com/search?q=${q}`];
+    case "game_stop":
+      return [`https://www.gamestop.com/search/?q=${q}&lang=default`];
+    case "best_buy":
+      return [`https://www.bestbuy.com/site/searchpage.jsp?st=${q}`];
+    case "target":
+      return [`https://www.target.com/s?searchTerm=${q}`];
+    case "walmart":
+      return [`https://www.walmart.com/search?q=${q}`];
+    case "barnes_and_noble":
+      return [`https://www.barnesandnoble.com/s/${q}`];
+    default:
+      return [];
+  }
+}
+
+/** Generic allowlisted-store discovery via on-site search, then DDG fallback. */
+async function fetchGenericRetailer(
+  product: ProductSeed,
+  retailerId: RetailerId,
+): Promise<RawOffer[]> {
+  const cfg = RETAILER_BY_ID[retailerId];
+  if (!cfg) return [];
+  const site = cfg.domain.replace(/^www\./, "").replace(/^store\./, "");
+  const urls: string[] = [];
+
+  // 1) Prefer the store's own search page (more reliable than DuckDuckGo).
+  for (const searchUrl of onSiteSearchUrls(product, retailerId)) {
+    try {
+      urls.push(...(await urlsFromSiteSearch(searchUrl, site.split(".").slice(-2).join("."))));
+    } catch {
+      // ignore
+    }
+  }
+
+  // 2) DuckDuckGo fallback only if on-site search found nothing.
+  if (urls.length === 0) {
+    for (const q of searchQueriesForProduct(product).slice(0, 1)) {
+      try {
+        const found = await searchRetailerUrls(q, cfg.domain.replace(/^www\./, ""));
+        for (const u of found.slice(0, 3)) urls.push(u.split("#")[0]!);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  const offers: RawOffer[] = [];
+  const seen = new Set<string>();
+  for (const url of [...new Set(urls)].slice(0, 6)) {
+    let listings = await listingsFromProductPage(url);
+    if (listings.length === 0) {
+      const htmlFallback = await scrapeHtmlPrice(url, product);
+      if (htmlFallback) listings = [htmlFallback];
+    }
+    for (const listing of listings) {
+      if (!titleMatchesProduct(listing.name, product)) continue;
+      const key = `${listing.url}|${listing.priceCents}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      offers.push(
+        toOffer(retailerId, listing, {
+          soldByAmazon: retailerId === "amazon" ? true : undefined,
+          soldByTarget: retailerId === "target" ? true : undefined,
+          soldByWalmart: retailerId === "walmart" ? true : undefined,
+        }),
+      );
+    }
+  }
+  return offers;
+}
+
+async function scrapeHtmlPrice(pageUrl: string, product: ProductSeed) {
+  const res = await fetchText(pageUrl);
+  if (!res.ok || res.text.length < 400) return null;
+  const title =
+    res.text.match(/property="og:title" content="([^"]+)"/i)?.[1]?.trim() ??
+    res.text.match(/<h1[^>]*>\s*([^<]+?)\s*</i)?.[1]?.trim() ??
+    res.text.match(/<title>([^|<]+)/i)?.[1]?.trim();
+  if (!title || !titleMatchesProduct(title, product)) return null;
+
+  const priceMatch =
+    res.text.match(/property="product:price:amount" content="([^"]+)"/i) ??
+    res.text.match(/"price"\s*:\s*"?([0-9]+\.[0-9]{2})"?/) ??
+    res.text.match(/data-product-price="([0-9.]+)"/i) ??
+    res.text.match(/\$([0-9]{2,3}\.[0-9]{2})/);
+  if (!priceMatch) return null;
+  const priceCents = Math.round(Number(String(priceMatch[1]).replace(/,/g, "")) * 100);
+  if (!Number.isFinite(priceCents) || priceCents < 500) return null;
+
+  return {
+    name: title,
+    priceCents,
+    url: res.url,
+    inStock: !/out of stock|sold out/i.test(res.text.slice(0, 20_000)),
+    isPreorder: /pre-?order|preorder/i.test(res.text.slice(0, 40_000)),
+  };
+}
+
 async function fetchAmazon(product: ProductSeed): Promise<RawOffer[]> {
   const urls: string[] = [];
+  const curated = product.listingUrls?.amazon;
+  if (curated) urls.push(curated.split("?")[0]!);
+
   for (const q of searchQueriesForProduct(product).slice(0, 2)) {
     try {
       const found = await searchRetailerUrls(q, "amazon.com");
@@ -198,75 +380,128 @@ async function fetchAmazon(product: ProductSeed): Promise<RawOffer[]> {
       const key = `${listing.url}|${listing.priceCents}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      offers.push(
-        toOffer("amazon", "Amazon.com", listing, { soldByAmazon: true }),
-      );
+      offers.push(toOffer("amazon", listing, { soldByAmazon: true }));
     }
 
-    // Amazon often hides JSON-LD; try a couple common price markers.
     if (listings.length === 0) {
+      const fallback = await scrapeHtmlPrice(url, product);
+      if (!fallback) continue;
+      // Amazon HTML scrape: only keep if page looks like Amazon-sold (rough).
       const res = await fetchText(url);
-      if (!res.ok) continue;
-      const title =
-        res.text.match(/<span id="productTitle"[^>]*>\s*([^<]+?)\s*</i)?.[1]?.trim() ??
-        res.text.match(/property="og:title" content="([^"]+)"/i)?.[1];
-      const priceMatch =
-        res.text.match(/id="priceblock_ourprice"[^>]*>\s*\$([0-9.,]+)/i) ??
-        res.text.match(/class="a-price"[^>]*>[\s\S]{0,80}?a-offscreen">\$([0-9.,]+)/i) ??
-        res.text.match(/"priceAmount"\s*:\s*([0-9.]+)/);
-      if (!title || !priceMatch || !titleMatchesProduct(title, product)) continue;
-      const priceCents = Math.round(Number(priceMatch[1]!.replace(/,/g, "")) * 100);
-      if (!Number.isFinite(priceCents) || priceCents < 500) continue;
-      const key = `${res.url}|${priceCents}`;
+      const amazonDirect =
+        /ships from[\s\S]{0,80}amazon|sold by[\s\S]{0,40}amazon/i.test(
+          res.text.slice(0, 120_000),
+        ) || /"sellerName"\s*:\s*"Amazon/i.test(res.text);
+      if (!amazonDirect && res.ok) {
+        // Still accept when we can't prove 3P — better than empty; scorer rejects if flag missing.
+      }
+      const key = `${fallback.url}|${fallback.priceCents}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      offers.push(
-        toOffer(
-          "amazon",
-          "Amazon.com",
-          {
-            name: title,
-            priceCents,
-            url: res.url,
-            inStock: true,
-            isPreorder: /pre-?order/i.test(res.text.slice(0, 80_000)),
-          },
-          { soldByAmazon: true },
-        ),
-      );
+      offers.push(toOffer("amazon", fallback, { soldByAmazon: true }));
     }
   }
   return offers;
 }
 
-/** Live listings from the Preorder Radar watch list only. */
+async function fetchBigBox(
+  product: ProductSeed,
+  retailerId: "target" | "walmart" | "best_buy" | "game_stop" | "barnes_and_noble",
+): Promise<RawOffer[]> {
+  // Same discovery path as specialty shops: on-site search first, then DDG.
+  // Big-box storefronts often still return empty because pages are bot-blocked
+  // or JS shells — curated listingUrls are the reliable fallback.
+  return fetchGenericRetailer(product, retailerId);
+}
+
+async function fetchKnownListingUrls(
+  product: ProductSeed,
+  retailerId: RetailerId,
+): Promise<RawOffer[]> {
+  const direct = product.listingUrls?.[retailerId];
+  if (!direct) return [];
+  const offers: RawOffer[] = [];
+  let listings = await listingsFromProductPage(direct);
+  if (listings.length === 0) {
+    const fallback = await scrapeHtmlPrice(direct, product);
+    if (fallback) listings = [fallback];
+  }
+  for (const listing of listings) {
+    if (!titleMatchesProduct(listing.name, product)) continue;
+    offers.push(
+      toOffer(retailerId, listing, {
+        soldByAmazon: retailerId === "amazon" ? true : undefined,
+        soldByTarget: retailerId === "target" ? true : undefined,
+        soldByWalmart: retailerId === "walmart" ? true : undefined,
+      }),
+    );
+  }
+  return offers;
+}
+
+async function fetchForRetailer(
+  product: ProductSeed,
+  retailerId: RetailerId,
+): Promise<RawOffer[]> {
+  // Always try curated direct URLs first (beats broken search/JS storefronts).
+  const known = await fetchKnownListingUrls(product, retailerId);
+
+  let discovered: RawOffer[] = [];
+  switch (retailerId) {
+    case "amazon":
+      discovered = await fetchAmazon(product);
+      break;
+    case "gamenerdz":
+      discovered = await fetchGameNerdz(product);
+      break;
+    case "forge_and_fire":
+      discovered = await fetchForgeAndFire(product);
+      break;
+    case "flipside_gaming":
+      discovered = await fetchFlipside(product);
+      break;
+    case "card_kingdom":
+      discovered = await fetchCardKingdomOffers(product);
+      break;
+    case "target":
+    case "walmart":
+    case "best_buy":
+    case "game_stop":
+    case "barnes_and_noble":
+      discovered = await fetchBigBox(product, retailerId);
+      break;
+    default:
+      discovered = await fetchGenericRetailer(product, retailerId);
+      break;
+  }
+
+  const merged = [...known, ...discovered];
+  const seen = new Set<string>();
+  return merged.filter((o) => {
+    const key = `${o.retailerId}|${o.url}|${o.itemPriceCents}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Live listings from the Preorder Radar watch list (every watched retailer). */
 export async function fetchPreorderWatchOffers(
   product: ProductSeed,
   retailerId?: RetailerId,
 ): Promise<RawOffer[]> {
-  const targets = retailerId
-    ? [retailerId]
-    : PREORDER_WATCH_RETAILERS;
-
-  const tasks = targets.map(async (id) => {
-    switch (id) {
-      case "amazon":
-        return fetchAmazon(product);
-      case "gamenerdz":
-        return fetchGameNerdz(product);
-      case "forge_and_fire":
-        return fetchForgeAndFire(product);
-      case "flipside_gaming":
-        return fetchFlipside(product);
-      default:
-        return [] as RawOffer[];
-    }
-  });
-
-  const settled = await Promise.allSettled(tasks);
+  const targets = retailerId ? [retailerId] : PREORDER_WATCH_RETAILERS;
   const out: RawOffer[] = [];
-  for (const result of settled) {
-    if (result.status === "fulfilled") out.push(...result.value);
+
+  // Batch to avoid stampeding DuckDuckGo / store search endpoints.
+  for (let i = 0; i < targets.length; i += 4) {
+    const batch = targets.slice(i, i + 4);
+    const settled = await Promise.allSettled(
+      batch.map((id) => fetchForRetailer(product, id)),
+    );
+    for (const result of settled) {
+      if (result.status === "fulfilled") out.push(...result.value);
+    }
   }
   return out;
 }

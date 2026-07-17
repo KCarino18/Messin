@@ -150,8 +150,9 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
             </h2>
           </div>
           <p className="mt-1 text-xs text-[var(--parchment)]/55">
-            Just-released + unreleased · Amazon, GameNerdz, Forge &amp; Fire,
-            Flipside, Miniature Market, Troll and Toad, ABU, and more
+            Just-released + unreleased · live listings from specialty shops
+            (Flipside, SCG, Card Kingdom, Miniature Market, Forge &amp; Fire,
+            and more). Big-box prices appear only when a public page is readable.
           </p>
         </div>
         {onCloseMobile && (

@@ -608,6 +608,63 @@ function radarTargets() {
   return preorderCatalog();
 }
 
+/** Fast dedicated stores for first paint; broader watch list fills via poll. */
+const RADAR_SEED_RETAILERS: RetailerId[] = [
+  "flipside_gaming",
+  "forge_and_fire",
+  "gamenerdz",
+  "card_kingdom",
+  "starcitygames",
+  "miniature_market",
+  "coolstuffinc",
+  "cardhaus",
+  "abu_games",
+  "amazon",
+  "target",
+  "walmart",
+  "game_stop",
+  "best_buy",
+];
+
+async function upsertRadarLive(
+  seed: ProductSeed,
+  retailerId: RetailerId,
+  live: {
+    itemPriceCents: number;
+    shippingCents: number;
+    url: string;
+    isDemo: boolean;
+  },
+  createdAt: Date,
+) {
+  const already = await db().preorderEvent.findFirst({
+    where: { productId: seed.id, retailerId },
+  });
+  if (already) return false;
+  const taxCents = estimateTaxCents(live.itemPriceCents, live.shippingCents);
+  await db().preorderEvent.create({
+    data: {
+      productId: seed.id,
+      productName: seed.name,
+      sealedType: seed.sealedType,
+      setName: seed.setName,
+      releaseDate: seed.releaseDate,
+      retailerId,
+      priceCents: live.itemPriceCents,
+      shippingCents: live.shippingCents,
+      taxCents,
+      totalCents: live.itemPriceCents + live.shippingCents + taxCents,
+      msrpCents: seed.msrpCents,
+      isMsrp: live.itemPriceCents <= seed.msrpCents,
+      url: live.url,
+      eventType: "went_live",
+      isDemo: false,
+      createdAt,
+    },
+  });
+  return true;
+}
+
 async function resetPreorderEventsForRadar() {
   const eligible = preorderCatalog();
   const eligibleIds = new Set(eligible.map((p) => p.id));
@@ -621,40 +678,30 @@ async function resetPreorderEventsForRadar() {
     },
   });
 
-  if ((await db().preorderEvent.count()) > 0) return;
-
   const now = Date.now();
-  let i = 0;
-  // Seed radar with live hits from Amazon / GameNerdz / Forge & Fire / Flipside.
-  for (const seed of eligible.slice(0, 4)) {
-    for (const retailerId of PREORDER_WATCH_RETAILERS) {
-      const live = await liveOfferForRetailer(seed, retailerId);
-      if (!live) continue;
-      const taxCents = estimateTaxCents(live.itemPriceCents, live.shippingCents);
-      await db().preorderEvent.create({
-        data: {
-          productId: seed.id,
-          productName: seed.name,
-          sealedType: seed.sealedType,
-          setName: seed.setName,
-          releaseDate: seed.releaseDate,
-          retailerId,
-          priceCents: live.itemPriceCents,
-          shippingCents: live.shippingCents,
-          taxCents,
-          totalCents: live.itemPriceCents + live.shippingCents + taxCents,
-          msrpCents: seed.msrpCents,
-          isMsrp: live.itemPriceCents <= seed.msrpCents,
-          url: live.url,
-          eventType: "went_live",
-          isDemo: false,
-          createdAt: new Date(now - (8 + i * 5) * 60_000),
-        },
-      });
-      i += 1;
-      if (i >= 8) break;
+  let added = 0;
+
+  // Parallel seed across a shortlist so radar isn't stuck on Flipside/Forge only.
+  // Always try to fill missing retailer×product pairs (upsert skips duplicates).
+  for (const seed of eligible.slice(0, 8)) {
+    const results = await Promise.allSettled(
+      RADAR_SEED_RETAILERS.map(async (retailerId) => {
+        const live = await liveOfferForRetailer(seed, retailerId);
+        if (!live) return null;
+        return { retailerId, live };
+      }),
+    );
+    for (const result of results) {
+      if (result.status !== "fulfilled" || !result.value) continue;
+      const ok = await upsertRadarLive(
+        seed,
+        result.value.retailerId,
+        result.value.live,
+        new Date(now - (8 + added * 3) * 60_000),
+      );
+      if (ok) added += 1;
     }
-    if (i >= 8) break;
+    if (added >= 36) break;
   }
 
   // Fallback: at least one TCGPlayer/market event so the rail isn't empty.
@@ -662,27 +709,12 @@ async function resetPreorderEventsForRadar() {
     for (const seed of eligible.slice(0, 3)) {
       const live = await liveStreetPrice(seed);
       if (!live) continue;
-      const taxCents = estimateTaxCents(live.itemPriceCents, live.shippingCents);
-      await db().preorderEvent.create({
-        data: {
-          productId: seed.id,
-          productName: seed.name,
-          sealedType: seed.sealedType,
-          setName: seed.setName,
-          releaseDate: seed.releaseDate,
-          retailerId: live.retailerId,
-          priceCents: live.itemPriceCents,
-          shippingCents: live.shippingCents,
-          taxCents,
-          totalCents: live.itemPriceCents + live.shippingCents + taxCents,
-          msrpCents: seed.msrpCents,
-          isMsrp: live.itemPriceCents <= seed.msrpCents,
-          url: live.url,
-          eventType: "went_live",
-          isDemo: false,
-          createdAt: new Date(now - 10 * 60_000),
-        },
-      });
+      await upsertRadarLive(
+        seed,
+        live.retailerId,
+        live,
+        new Date(now - 10 * 60_000),
+      );
     }
   }
 }
@@ -767,14 +799,14 @@ async function pollPreorders(pollMs: number) {
       lastPolledAt: now,
       nextPollAt: next,
       message:
-        "Watching Amazon, GameNerdz, Forge & Fire, Flipside for new/unreleased sealed",
+        "Watching specialty shops + big-box when public prices are readable (Flipside, SCG, Card Kingdom, MM, Forge & Fire, Amazon/Target/Walmart when unblocked)",
     },
     update: {
       status: "watching",
       lastPolledAt: now,
       nextPollAt: next,
       message:
-        "Watching Amazon, GameNerdz, Forge & Fire, Flipside for new/unreleased sealed",
+        "Watching specialty shops + big-box when public prices are readable (Flipside, SCG, Card Kingdom, MM, Forge & Fire, Amazon/Target/Walmart when unblocked)",
     },
   });
 

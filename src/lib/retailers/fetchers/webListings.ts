@@ -16,9 +16,9 @@ const cache = new Map<string, { at: number; urls: string[] }>();
 const CACHE_TTL = 30 * 60 * 1000;
 
 /** Cap concurrent DuckDuckGo site searches per product load. */
-const MAX_SEARCH_SITES = 18;
+const MAX_SEARCH_SITES = 28;
 /** Cap product pages opened per product load. */
-const MAX_PRODUCT_PAGES = 24;
+const MAX_PRODUCT_PAGES = 32;
 
 function retailerForUrl(url: string): RetailerId | null {
   try {
@@ -147,6 +147,11 @@ function searchSitePriority(domain: string): number {
     "abugames.com",
     "facetofacegames.com",
     "amazon.com",
+    "target.com",
+    "walmart.com",
+    "bestbuy.com",
+    "gamestop.com",
+    "barnesandnoble.com",
     "cardkingdom.com",
   ];
   const idx = hot.indexOf(domain.replace(/^www\./, ""));

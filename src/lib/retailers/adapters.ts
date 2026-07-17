@@ -96,7 +96,11 @@ async function fetchLiveOffers(
     fetchCardKingdomOffers(product),
   ];
   if (deep) {
+    // Broad site search + dedicated watch-store fetchers (includes big-box).
     tasks.push(fetchWebRetailerOffers(product));
+    tasks.push(fetchPreorderWatchOffers(product));
+  } else {
+    // Even quick sync should hit the core watch list (Flipside, Forge, MM, etc.).
     tasks.push(fetchPreorderWatchOffers(product));
   }
 

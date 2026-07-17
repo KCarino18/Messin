@@ -77,6 +77,7 @@ export const RETAILER_ALLOWLIST: RetailerConfig[] = [
     directOnly: true,
     marketplace: false,
     deepSearch: true,
+    preorderWatch: true,
   },
   {
     id: "coolstuffinc",
@@ -129,6 +130,7 @@ export const RETAILER_ALLOWLIST: RetailerConfig[] = [
     directOnly: true,
     marketplace: false,
     deepSearch: true,
+    preorderWatch: true,
   },
   {
     id: "walmart",
@@ -137,6 +139,7 @@ export const RETAILER_ALLOWLIST: RetailerConfig[] = [
     directOnly: true,
     marketplace: false,
     deepSearch: true,
+    preorderWatch: true,
   },
   {
     id: "tcgplayer",
@@ -260,6 +263,7 @@ export const RETAILER_ALLOWLIST: RetailerConfig[] = [
     directOnly: true,
     marketplace: false,
     deepSearch: true,
+    preorderWatch: true,
   },
   {
     id: "best_buy",
@@ -268,6 +272,7 @@ export const RETAILER_ALLOWLIST: RetailerConfig[] = [
     directOnly: true,
     marketplace: false,
     deepSearch: true,
+    preorderWatch: true,
   },
   {
     id: "barnes_and_noble",
@@ -276,6 +281,7 @@ export const RETAILER_ALLOWLIST: RetailerConfig[] = [
     directOnly: true,
     marketplace: false,
     deepSearch: true,
+    preorderWatch: true,
   },
   {
     id: "hobby_town",
