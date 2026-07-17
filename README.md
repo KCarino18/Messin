@@ -2,18 +2,23 @@
 
 **Desktop app** for Magic: The Gathering sealed-product deals and preorder watching.
 
-[![Install for Windows](https://img.shields.io/badge/install-Windows_Setup.exe-3d9b72?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/KCarino18/Messin/releases/latest)
+[![Install for Windows](https://img.shields.io/badge/install-Windows_Setup.exe-3d9b72?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/KCarino18/Messin/releases/latest/download/MTG-Budget-Setup.exe)
 
 ## Install (Windows)
 
-1. Open the [latest release](https://github.com/KCarino18/Messin/releases/latest)
-2. Download **`MTG-Budget-Setup-*.exe`**
-3. Double-click the Setup file to install
-4. Launch **MTG Budget** from the Start Menu or Desktop shortcut
+1. Click **[Download MTG-Budget-Setup.exe](https://github.com/KCarino18/Messin/releases/latest/download/MTG-Budget-Setup.exe)** (starts immediately)
+2. Double-click the Setup file to install
+3. Launch **MTG Budget** from the Start Menu or Desktop shortcut
 
 That installs a real desktop application on your PC. No browser. No zip. No Node.js.
 
-Linux AppImage and macOS DMG are also published on the same releases page when available.
+The installed app does **not** auto-update yet — grab the new Setup.exe when a release drops.
+
+| OS | Direct download |
+| --- | --- |
+| **Windows** | [MTG-Budget-Setup.exe](https://github.com/KCarino18/Messin/releases/latest/download/MTG-Budget-Setup.exe) |
+| **Linux** | [MTG-Budget-Linux.AppImage](https://github.com/KCarino18/Messin/releases/latest/download/MTG-Budget-Linux.AppImage) |
+| **macOS** | [MTG-Budget-macOS.dmg](https://github.com/KCarino18/Messin/releases/latest/download/MTG-Budget-macOS.dmg) |
 
 ## What it does
 

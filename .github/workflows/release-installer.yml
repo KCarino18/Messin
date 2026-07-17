@@ -118,6 +118,19 @@ jobs:
         run: |
           mkdir -p release-files
           find artifacts -type f \( -name '*.exe' -o -name '*.AppImage' -o -name '*.dmg' \) -exec cp {} release-files/ \;
+          # Stable names so /releases/latest/download/... starts a download immediately.
+          win="$(find release-files -maxdepth 1 -type f -name 'MTG-Budget-Setup-*.exe' | head -n 1 || true)"
+          if [[ -n "$win" ]]; then
+            cp "$win" release-files/MTG-Budget-Setup.exe
+          fi
+          linux="$(find release-files -maxdepth 1 -type f -name 'MTG-Budget-*-Linux.AppImage' | head -n 1 || true)"
+          if [[ -n "$linux" ]]; then
+            cp "$linux" release-files/MTG-Budget-Linux.AppImage
+          fi
+          mac="$(find release-files -maxdepth 1 -type f -name 'MTG-Budget-*-macOS.dmg' | head -n 1 || true)"
+          if [[ -n "$mac" ]]; then
+            cp "$mac" release-files/MTG-Budget-macOS.dmg
+          fi
           ls -lah release-files
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -129,7 +142,9 @@ jobs:
           body: |
             ## Install the desktop app
 
-            1. Download **MTG-Budget-Setup-*.exe** (Windows)
+            **Windows (direct download):** [MTG-Budget-Setup.exe](https://github.com/KCarino18/Messin/releases/latest/download/MTG-Budget-Setup.exe)
+
+            1. Click the link above (download starts immediately)
             2. Double-click to install
             3. Launch **MTG Budget** from the Start Menu or Desktop shortcut
 
@@ -137,9 +152,9 @@ jobs:
 
             | OS | Installer |
             | --- | --- |
-            | **Windows** | `MTG-Budget-Setup-*.exe` |
-            | **Linux** | `MTG-Budget-*-Linux.AppImage` |
-            | **macOS** | `MTG-Budget-*-macOS.dmg` (when available) |
+            | **Windows** | [MTG-Budget-Setup.exe](https://github.com/KCarino18/Messin/releases/latest/download/MTG-Budget-Setup.exe) |
+            | **Linux** | [MTG-Budget-Linux.AppImage](https://github.com/KCarino18/Messin/releases/latest/download/MTG-Budget-Linux.AppImage) |
+            | **macOS** | [MTG-Budget-macOS.dmg](https://github.com/KCarino18/Messin/releases/latest/download/MTG-Budget-macOS.dmg) |
           files: release-files/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
