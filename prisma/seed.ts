@@ -31,6 +31,9 @@ async function main() {
   await prisma.budget.deleteMany();
   await prisma.watcherState.deleteMany();
 
+  // Packaging / CI must stay offline — live scrapes across 50+ stores hang the
+  // desktop release build. The installed app refreshes prices at runtime.
+  const seedLivePrices = process.env.SEED_LIVE_PRICES === "1";
   let liveCount = 0;
   for (const p of SEALED_CATALOG) {
     await prisma.product.create({
@@ -46,7 +49,9 @@ async function main() {
       },
     });
 
-    const { offers, mode } = await fetchOffersForProduct(p);
+    if (!seedLivePrices) continue;
+
+    const { offers, mode } = await fetchOffersForProduct(p, { deep: false });
     if (mode === "live") liveCount += 1;
     const scored = offers.map((o) => scoreOffer(o, p.msrpCents));
     await prisma.offer.createMany({
@@ -131,7 +136,9 @@ async function main() {
   });
 
   console.log(
-    `Seeded ${SEALED_CATALOG.length} sealed products (${liveCount} live-priced); radar eligible: ${radar.length}`,
+    `Seeded ${SEALED_CATALOG.length} sealed products (${
+      seedLivePrices ? `${liveCount} live-priced` : "catalog-only, live at runtime"
+    }); radar eligible: ${radar.length}`,
   );
 }
 
