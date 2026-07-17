@@ -83,10 +83,12 @@ export async function buildProductRoi(options: {
 
   try {
     const cards = await loadPricedCardsForSet(options.setName);
+    const seed = catalogById(options.productId);
     const roi = simulateSealedRoi({
       cards,
       sealedType: options.sealedType,
       buyPriceCents: options.buyPriceCents,
+      packCount: seed?.packCount,
     });
 
     if (!roi) {

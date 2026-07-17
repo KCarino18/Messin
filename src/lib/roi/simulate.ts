@@ -140,14 +140,14 @@ function openCollectorPack(
   return total;
 }
 
-function packCountFor(sealedType: SealedTypeId): number | null {
+function defaultPackCountFor(sealedType: SealedTypeId): number | null {
   switch (sealedType) {
     case "play_booster_box":
-      return 36;
+      return 30; // 2026 displays; older 36-pack SKUs pass packCount explicitly
     case "collector_booster_display":
       return 12;
     case "bundle":
-      return 8; // treated as 8 Play Boosters
+      return 9;
     default:
       return null;
   }
@@ -166,10 +166,12 @@ export function simulateSealedRoi(options: {
   cards: PricedCard[];
   sealedType: SealedTypeId;
   buyPriceCents: number;
+  /** Override when the SKU pack count differs from the sealed-type default. */
+  packCount?: number;
   trials?: number;
   seed?: number;
 }): RoiResult | null {
-  const packCount = packCountFor(options.sealedType);
+  const packCount = options.packCount ?? defaultPackCountFor(options.sealedType);
   if (!packCount || options.buyPriceCents <= 0) return null;
 
   const pools = poolByRarity(options.cards);
@@ -217,7 +219,7 @@ export function simulateSealedRoi(options: {
     options.sealedType === "collector_booster_display"
       ? "Collector Booster (non-foil + foil slots @ TCGPlayer Normal/Foil)"
       : options.sealedType === "bundle"
-        ? "Bundle ≈ 8 Play Boosters (non-foil + foil slots)"
+        ? `Bundle ≈ ${packCount} Play Boosters (non-foil + foil slots)`
         : "Play Booster (non-foil commons/uncommons/rare + traditional foil slot)";
 
   return {

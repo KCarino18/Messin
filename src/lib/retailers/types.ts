@@ -38,6 +38,8 @@ export type ProductSeed = {
   releaseDate: string;
   /** Official Wizards MSRP (not street / TCGPlayer market). */
   msrpCents: number;
+  /** Packs / units inside the sealed SKU (Play box = 30 or 36, Collector = 12, Bundle = 9). */
+  packCount?: number;
   imageUrl?: string;
   /** TCGPlayer set/group id for tcgcsv price lookup. */
   tcgplayerGroupId?: number;
