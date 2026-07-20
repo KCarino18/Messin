@@ -7,7 +7,7 @@ import {
 import { fetchPage, fetchText } from "../http";
 import type { BlockedRetailer } from "../blocked";
 import { blockedRetailer } from "../blocked";
-import { listingsFromJsonLd, listingFromOgMeta } from "../parsePrice";
+import { parseListingsFromPage } from "../parsePrice";
 import {
   searchQueriesForProduct,
   titleMatchesProduct,
@@ -139,10 +139,7 @@ async function listingsFromPage(pageUrl: string, blocked?: BlockedRetailer[]) {
   if (res.blocked || /\/blocked|captcha|access denied/i.test(res.url + res.text.slice(0, 2000))) {
     return [];
   }
-  const fromLd = listingsFromJsonLd(res.text, res.url);
-  if (fromLd.length > 0) return fromLd;
-  const og = listingFromOgMeta(res.text, res.url);
-  return og ? [og] : [];
+  return parseListingsFromPage(res);
 }
 
 function searchSitePriority(domain: string): number {

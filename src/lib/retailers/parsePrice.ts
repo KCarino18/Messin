@@ -1,4 +1,5 @@
 import { cents } from "@/lib/money";
+import { isBlockedPage, type PageFetchResult } from "./http";
 
 export type ParsedListing = {
   name: string;
@@ -78,6 +79,16 @@ export function listingsFromJsonLd(html: string, pageUrl: string): ParsedListing
     }
   }
   return out;
+}
+
+/** Parse product listings from an already-fetched page (avoids duplicate HTTP/browser loads). */
+export function parseListingsFromPage(res: PageFetchResult): ParsedListing[] {
+  if (!res.ok || res.text.length < 400) return [];
+  if (res.blocked || isBlockedPage(res.url, res.text)) return [];
+  const fromLd = listingsFromJsonLd(res.text, res.url);
+  if (fromLd.length > 0) return fromLd;
+  const og = listingFromOgMeta(res.text, res.url);
+  return og ? [og] : [];
 }
 
 export function listingFromOgMeta(html: string, pageUrl: string): ParsedListing | null {
