@@ -1,6 +1,6 @@
 {
   "name": "mtg-budget",
-  "version": "0.3.19",
+  "version": "0.3.20",
   "private": true,
   "description": "MTG Budget desktop app for sealed Magic product deals",
   "author": "MTG Budget",
@@ -28,7 +28,8 @@
     "@prisma/client": "^7.8.0",
     "better-sqlite3": "^12.11.1",
     "dotenv": "^17.4.2",
-    "prisma": "^7.8.0",
+    "electron-updater": "^6.8.9",
+    "electron-updater": "^6.6.2",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "zod": "^4.4.3"
@@ -64,9 +65,26 @@
       "electron/main.cjs",
       "electron/preload.cjs",
       "electron/browserFetch.cjs",
+      "electron/autoUpdater.cjs",
       "electron/backend.dist.cjs",
       "electron/renderer/**/*",
-      "package.json"
+      "package.json",
+      "node_modules/electron-updater/**/*",
+      "node_modules/builder-util-runtime/**/*",
+      "node_modules/fs-extra/**/*",
+      "node_modules/semver/**/*",
+      "node_modules/lazy-val/**/*",
+      "node_modules/sax/**/*",
+      "node_modules/js-yaml/**/*",
+      "node_modules/argparse/**/*",
+      "node_modules/debug/**/*",
+      "node_modules/ms/**/*",
+      "node_modules/graceful-fs/**/*",
+      "node_modules/jsonfile/**/*",
+      "node_modules/universalify/**/*",
+      "node_modules/lodash.escaperegexp/**/*",
+      "node_modules/lodash.isequal/**/*",
+      "node_modules/tiny-typed-emitter/**/*"
     ],
     "extraResources": [
       {
@@ -79,6 +97,12 @@
       "**/node_modules/better-sqlite3/**/*",
       "**/*.node"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "KCarino18",
+      "repo": "Messin",
+      "releaseType": "release"
+    },
     "win": {
       "target": [
         {

@@ -1,10 +1,12 @@
 const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
+const { setupAutoUpdater } = require("./autoUpdater.cjs");
 
 let mainWindow = null;
 let backend = null;
 let unsubscribePreorders = null;
+let updater = null;
 
 function resourcePath(...parts) {
   if (app.isPackaged) {
@@ -89,6 +91,7 @@ function createWindow() {
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
+    updater?.checkForUpdates();
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -113,6 +116,7 @@ async function boot() {
     }
     await initBackend();
     registerIpc();
+    updater = setupAutoUpdater(() => mainWindow);
     createWindow();
   } catch (error) {
     dialog.showErrorBox(

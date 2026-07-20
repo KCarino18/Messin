@@ -44,6 +44,7 @@ export type DesktopApi = {
   getProductRoi: (productId: string) => Promise<unknown>;
   getPreorders: (sealedTypes?: SealedTypeId[]) => Promise<unknown>;
   onPreorder: (callback: (payload: unknown) => void) => () => void;
+  onUpdater: (callback: (payload: unknown) => void) => () => void;
   openExternal: (url: string) => Promise<boolean>;
 };
 

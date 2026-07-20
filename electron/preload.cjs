@@ -16,5 +16,10 @@ contextBridge.exposeInMainWorld("mtgDesktop", {
     ipcRenderer.on("preorders:event", handler);
     return () => ipcRenderer.removeListener("preorders:event", handler);
   },
+  onUpdater: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on("updater:event", handler);
+    return () => ipcRenderer.removeListener("updater:event", handler);
+  },
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
 });

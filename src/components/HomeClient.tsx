@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { UpdateBanner } from "@/components/UpdateBanner";
 import { ApiSettingsPanel } from "@/components/ApiSettingsPanel";
 import { BudgetSetter } from "@/components/BudgetSetter";
 import { DealList, type Deal } from "@/components/DealList";
@@ -55,6 +56,7 @@ export function HomeClient({ initialBudgetCents }: { initialBudgetCents: number 
           </p>
 
           <div className="mt-8 space-y-5">
+            <UpdateBanner />
             <BudgetSetter
               initialCents={budgetCents}
               onBudgetChange={(cents) => setBudgetCents(cents)}

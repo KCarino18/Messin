@@ -54,7 +54,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: dist-desktop/MTG-Budget-Setup-*.exe
+          path: |
+            dist-desktop/MTG-Budget-Setup-*.exe
+            dist-desktop/latest.yml
 
   build-linux:
     needs: release-meta
@@ -79,7 +81,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: linux-installer
-          path: dist-desktop/MTG-Budget-*-Linux.AppImage
+          path: |
+            dist-desktop/MTG-Budget-*-Linux.AppImage
+            dist-desktop/latest-linux.yml
 
   build-mac:
     needs: release-meta
@@ -117,7 +121,7 @@ jobs:
       - name: Collect release files
         run: |
           mkdir -p release-files
-          find artifacts -type f \( -name '*.exe' -o -name '*.AppImage' -o -name '*.dmg' \) -exec cp {} release-files/ \;
+          find artifacts -type f \( -name '*.exe' -o -name '*.AppImage' -o -name '*.dmg' -o -name 'latest*.yml' \) -exec cp {} release-files/ \;
           # Stable names so /releases/latest/download/... starts a download immediately.
           win="$(find release-files -maxdepth 1 -type f -name 'MTG-Budget-Setup-*.exe' | head -n 1 || true)"
           if [[ -n "$win" ]]; then
@@ -149,6 +153,8 @@ jobs:
             3. Launch **MTG Budget** from the Start Menu or Desktop shortcut
 
             This is a real desktop application installed on your computer — not a website and not a zip of scripts.
+
+            **Auto-update:** Windows builds check GitHub Releases on startup and install newer versions automatically (requires `latest.yml` on the release).
 
             | OS | Installer |
             | --- | --- |
