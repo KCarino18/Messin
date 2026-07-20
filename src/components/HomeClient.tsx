@@ -15,6 +15,9 @@ export function HomeClient({ initialBudgetCents }: { initialBudgetCents: number 
   const [budgetCents, setBudgetCents] = useState(initialBudgetCents);
   const [sealedTypes, setSealedTypes] = useState<SealedTypeId[]>(DEFAULT_TYPES);
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [blockedRetailers, setBlockedRetailers] = useState<
+    Array<{ retailerName: string; url: string; reason: string }>
+  >([]);
   const [mode, setMode] = useState("demo");
   const [loading, startTransition] = useTransition();
   const [radarOpen, setRadarOpen] = useState(false);
@@ -24,9 +27,11 @@ export function HomeClient({ initialBudgetCents }: { initialBudgetCents: number 
       const data = (await desktop().getDeals(cents, types)) as {
         deals: Deal[];
         mode: string;
+        blockedRetailers?: Array<{ retailerName: string; url: string; reason: string }>;
       };
       setDeals(data.deals);
       setMode(data.mode);
+      setBlockedRetailers(data.blockedRetailers ?? []);
     });
   }, []);
 
@@ -88,6 +93,7 @@ export function HomeClient({ initialBudgetCents }: { initialBudgetCents: number 
                 budgetCents={budgetCents}
                 loading={loading}
                 mode={mode}
+                blockedRetailers={blockedRetailers}
               />
             </div>
           </section>

@@ -9,6 +9,7 @@ export type DesktopApi = {
   ) => Promise<{
     budgetCents: number;
     deals: unknown[];
+    blockedRetailers?: Array<{ retailerName: string; url: string; reason: string }>;
     mode: string;
   }>;
   searchProducts: (q: string) => Promise<{ products: unknown[] }>;

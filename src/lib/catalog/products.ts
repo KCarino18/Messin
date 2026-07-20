@@ -29,6 +29,11 @@ export const SEALED_CATALOG: ProductSeed[] = [
         "https://www.cardkingdom.com/mtg-sealed/marvel-super-heroes-play-booster-box",
       starcitygames:
         "https://starcitygames.com/marvel-super-heroes-play-booster-box-sld-mtg-bbx-mshplay-en/",
+      amazon: "https://www.amazon.com/dp/B0F8XQK9LM",
+      flipside_gaming:
+        "https://flipsidegaming.com/products/mtg-marvel-super-heroes-play-booster-box",
+      troll_and_toad:
+        "https://www.trollandtoad.com/products/marvel-super-heroes-play-booster-box",
     },
   },
   {
@@ -42,6 +47,12 @@ export const SEALED_CATALOG: ProductSeed[] = [
     packCount: 12,
     tcgplayerGroupId: 24553,
     tcgplayerProductId: 675606,
+    listingUrls: {
+      card_kingdom:
+        "https://www.cardkingdom.com/mtg-sealed/marvel-super-heroes-collector-booster-box",
+      flipside_gaming:
+        "https://flipsidegaming.com/products/mtg-marvel-super-heroes-collector-booster-box",
+    },
   },
   {
     id: "msh-bundle",
@@ -54,6 +65,9 @@ export const SEALED_CATALOG: ProductSeed[] = [
     packCount: 9,
     tcgplayerGroupId: 24553,
     tcgplayerProductId: 675615,
+    listingUrls: {
+      card_kingdom: "https://www.cardkingdom.com/mtg-sealed/marvel-super-heroes-bundle",
+    },
   },
   {
     id: "msh-gift-bundle",
@@ -115,7 +129,14 @@ export const SEALED_CATALOG: ProductSeed[] = [
         "https://flipsidegaming.com/products/mtg-the-hobbit-play-booster-box",
       forge_and_fire:
         "https://forgeandfiregaming.com/magic-the-gathering/the-hobbit-play-booster-display/",
+      gamenerdz:
+        "https://www.gamenerdz.com/magic-the-gathering-the-hobbit-play-booster-box-preorder",
+      troll_and_toad: "https://www.trollandtoad.com/products/the-hobbit-play-booster-box",
       amazon: "https://www.amazon.com/dp/B0GXCBJG9L",
+      target:
+        "https://www.target.com/p/magic-the-gathering-the-hobbit-play-booster-display/-/A-1012055693",
+      walmart:
+        "https://www.walmart.com/ip/Magic-The-Gathering-The-Hobbit-Play-Booster-Display/20213053526",
     },
   },
   {
@@ -136,6 +157,10 @@ export const SEALED_CATALOG: ProductSeed[] = [
         "https://forgeandfiregaming.com/magic-the-gathering/the-hobbit-collector-booster-booster-display/",
       card_kingdom:
         "https://www.cardkingdom.com/mtg-sealed/the-hobbit-collector-booster-box",
+      miniature_market:
+        "https://www.miniaturemarket.com/MTG-The-Hobbit-Collector-Booster-Box-12-Preorder/WOCD5660-BOX",
+      walmart:
+        "https://www.walmart.com/ip/Magic-The-Gathering-The-Hobbit-Collector-Booster-Display/20238910984",
     },
   },
   {
@@ -155,6 +180,7 @@ export const SEALED_CATALOG: ProductSeed[] = [
       card_kingdom: "https://www.cardkingdom.com/mtg-sealed/the-hobbit-bundle",
       forge_and_fire:
         "https://forgeandfiregaming.com/magic-the-gathering/the-hobbit-bundle/",
+      walmart: "https://www.walmart.com/ip/MTG-THE-HOBBIT-BUNDLE/20428919539",
     },
   },
   {
@@ -201,6 +227,12 @@ export const SEALED_CATALOG: ProductSeed[] = [
         "https://flipsidegaming.com/products/mtg-reality-fracture-play-booster-box",
       card_kingdom:
         "https://www.cardkingdom.com/mtg-sealed/reality-fracture-play-booster-box",
+      miniature_market:
+        "https://www.miniaturemarket.com/MTG-Reality-Fracture-Play-Booster-Box-30-Preorder/WOCD5920-BOX",
+      forge_and_fire:
+        "https://forgeandfiregaming.com/magic-the-gathering/reality-fracture-play-booster-display/",
+      troll_and_toad:
+        "https://www.trollandtoad.com/products/reality-fracture-play-booster-box",
     },
   },
   {
@@ -214,6 +246,14 @@ export const SEALED_CATALOG: ProductSeed[] = [
     packCount: 12,
     tcgplayerGroupId: 24684,
     tcgplayerProductId: 692983,
+    listingUrls: {
+      card_kingdom:
+        "https://www.cardkingdom.com/mtg-sealed/reality-fracture-collector-booster-box",
+      flipside_gaming:
+        "https://flipsidegaming.com/products/mtg-reality-fracture-collector-booster-box",
+      miniature_market:
+        "https://www.miniaturemarket.com/MTG-Reality-Fracture-Collector-Booster-Box-12-Preorder/WOCD5922-BOX",
+    },
   },
   {
     id: "star-trek-play-booster-box",
@@ -226,6 +266,10 @@ export const SEALED_CATALOG: ProductSeed[] = [
     packCount: 30,
     tcgplayerGroupId: 24766,
     tcgplayerProductId: 706138,
+    listingUrls: {
+      card_kingdom: "https://www.cardkingdom.com/mtg-sealed/star-trek-play-booster-box",
+      troll_and_toad: "https://www.trollandtoad.com/products/star-trek-play-booster-box",
+    },
   },
   {
     id: "star-trek-collector-booster-display",
@@ -238,6 +282,10 @@ export const SEALED_CATALOG: ProductSeed[] = [
     packCount: 12,
     tcgplayerGroupId: 24766,
     tcgplayerProductId: 706142,
+    listingUrls: {
+      card_kingdom:
+        "https://www.cardkingdom.com/mtg-sealed/star-trek-collector-booster-box",
+    },
   },
   {
     id: "star-trek-bundle",
@@ -250,6 +298,9 @@ export const SEALED_CATALOG: ProductSeed[] = [
     packCount: 9,
     tcgplayerGroupId: 24766,
     tcgplayerProductId: 706150,
+    listingUrls: {
+      card_kingdom: "https://www.cardkingdom.com/mtg-sealed/star-trek-bundle",
+    },
   },
   {
     id: "star-trek-beam-me-up-bundle",

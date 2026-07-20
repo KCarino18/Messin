@@ -7,7 +7,8 @@ import {
 import { fetchCardKingdomOffers } from "./cardKingdom";
 import { blockedRetailer, type BlockedRetailer } from "../blocked";
 import { fetchPage, fetchText } from "../http";
-import { listingsFromJsonLd, listingFromOgMeta } from "../parsePrice";
+import { parseListingsFromPage } from "../parsePrice";
+import type { PageFetchResult } from "../http";
 import {
   searchQueriesForProduct,
   setSlug,
@@ -54,16 +55,38 @@ function toOffer(
   };
 }
 
-async function listingsFromProductPage(pageUrl: string) {
-  const res = await fetchPage(pageUrl);
-  if (!res.ok || res.text.length < 400) return [];
-  if (res.blocked || /\/blocked|captcha|access denied|robot check/i.test(res.url + res.text.slice(0, 2500))) {
-    return [];
-  }
-  const fromLd = listingsFromJsonLd(res.text, res.url);
-  if (fromLd.length > 0) return fromLd;
-  const og = listingFromOgMeta(res.text, res.url);
-  return og ? [og] : [];
+async function listingsFromProductPage(
+  pageUrl: string,
+  prefetched?: PageFetchResult,
+) {
+  const res = prefetched ?? (await fetchPage(pageUrl));
+  return parseListingsFromPage(res);
+}
+
+function scrapeHtmlPriceFromPage(res: PageFetchResult, product: ProductSeed) {
+  if (!res.ok || res.text.length < 400) return null;
+  const title =
+    res.text.match(/property="og:title" content="([^"]+)"/i)?.[1]?.trim() ??
+    res.text.match(/<h1[^>]*>\s*([^<]+?)\s*</i)?.[1]?.trim() ??
+    res.text.match(/<title>([^|<]+)/i)?.[1]?.trim();
+  if (!title || !titleMatchesProduct(title, product)) return null;
+
+  const priceMatch =
+    res.text.match(/property="product:price:amount" content="([^"]+)"/i) ??
+    res.text.match(/"price"\s*:\s*"?([0-9]+\.[0-9]{2})"?/) ??
+    res.text.match(/data-product-price="([0-9.]+)"/i) ??
+    res.text.match(/\$([0-9]{2,3}\.[0-9]{2})/);
+  if (!priceMatch) return null;
+  const priceCents = Math.round(Number(String(priceMatch[1]).replace(/,/g, "")) * 100);
+  if (!Number.isFinite(priceCents) || priceCents < 500) return null;
+
+  return {
+    name: title,
+    priceCents,
+    url: res.url,
+    inStock: !/out of stock|sold out/i.test(res.text.slice(0, 20_000)),
+    isPreorder: /pre-?order|preorder/i.test(res.text.slice(0, 40_000)),
+  };
 }
 
 function sealedSlugVariants(product: ProductSeed): string[] {
@@ -337,31 +360,13 @@ async function fetchGenericRetailer(
   return offers;
 }
 
-async function scrapeHtmlPrice(pageUrl: string, product: ProductSeed) {
-  const res = await fetchPage(pageUrl);
-  if (!res.ok || res.text.length < 400) return null;
-  const title =
-    res.text.match(/property="og:title" content="([^"]+)"/i)?.[1]?.trim() ??
-    res.text.match(/<h1[^>]*>\s*([^<]+?)\s*</i)?.[1]?.trim() ??
-    res.text.match(/<title>([^|<]+)/i)?.[1]?.trim();
-  if (!title || !titleMatchesProduct(title, product)) return null;
-
-  const priceMatch =
-    res.text.match(/property="product:price:amount" content="([^"]+)"/i) ??
-    res.text.match(/"price"\s*:\s*"?([0-9]+\.[0-9]{2})"?/) ??
-    res.text.match(/data-product-price="([0-9.]+)"/i) ??
-    res.text.match(/\$([0-9]{2,3}\.[0-9]{2})/);
-  if (!priceMatch) return null;
-  const priceCents = Math.round(Number(String(priceMatch[1]).replace(/,/g, "")) * 100);
-  if (!Number.isFinite(priceCents) || priceCents < 500) return null;
-
-  return {
-    name: title,
-    priceCents,
-    url: res.url,
-    inStock: !/out of stock|sold out/i.test(res.text.slice(0, 20_000)),
-    isPreorder: /pre-?order|preorder/i.test(res.text.slice(0, 40_000)),
-  };
+async function scrapeHtmlPrice(
+  pageUrl: string,
+  product: ProductSeed,
+  prefetched?: PageFetchResult,
+) {
+  const res = prefetched ?? (await fetchPage(pageUrl));
+  return scrapeHtmlPriceFromPage(res, product);
 }
 
 async function fetchAmazon(product: ProductSeed): Promise<RawOffer[]> {
@@ -383,7 +388,8 @@ async function fetchAmazon(product: ProductSeed): Promise<RawOffer[]> {
   const offers: RawOffer[] = [];
   const seen = new Set<string>();
   for (const url of [...new Set(urls)].slice(0, 4)) {
-    const listings = await listingsFromProductPage(url);
+    const pageRes = await fetchPage(url);
+    const listings = await listingsFromProductPage(url, pageRes);
     for (const listing of listings) {
       if (!titleMatchesProduct(listing.name, product)) continue;
       const key = `${listing.url}|${listing.priceCents}`;
@@ -393,17 +399,8 @@ async function fetchAmazon(product: ProductSeed): Promise<RawOffer[]> {
     }
 
     if (listings.length === 0) {
-      const fallback = await scrapeHtmlPrice(url, product);
+      const fallback = scrapeHtmlPriceFromPage(pageRes, product);
       if (!fallback) continue;
-      // Amazon HTML scrape: only keep if page looks like Amazon-sold (rough).
-      const res = await fetchText(url);
-      const amazonDirect =
-        /ships from[\s\S]{0,80}amazon|sold by[\s\S]{0,40}amazon/i.test(
-          res.text.slice(0, 120_000),
-        ) || /"sellerName"\s*:\s*"Amazon/i.test(res.text);
-      if (!amazonDirect && res.ok) {
-        // Still accept when we can't prove 3P — better than empty; scorer rejects if flag missing.
-      }
       const key = `${fallback.url}|${fallback.priceCents}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -432,9 +429,9 @@ async function fetchKnownListingUrls(
   if (!direct) return [];
   const offers: RawOffer[] = [];
   const pageRes = await fetchPage(direct);
-  let listings = await listingsFromProductPage(direct);
+  let listings = await listingsFromProductPage(direct, pageRes);
   if (listings.length === 0) {
-    const fallback = await scrapeHtmlPrice(direct, product);
+    const fallback = scrapeHtmlPriceFromPage(pageRes, product);
     if (fallback) listings = [fallback];
   }
   for (const listing of listings) {

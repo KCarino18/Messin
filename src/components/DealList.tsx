@@ -36,9 +36,10 @@ type Props = {
   budgetCents: number;
   loading?: boolean;
   mode?: string;
+  blockedRetailers?: Array<{ retailerName: string; url: string; reason: string }>;
 };
 
-export function DealList({ deals, budgetCents, loading, mode }: Props) {
+export function DealList({ deals, budgetCents, loading, mode, blockedRetailers = [] }: Props) {
   if (loading) {
     return (
       <p className="text-[var(--parchment)]/60">
@@ -166,6 +167,27 @@ export function DealList({ deals, budgetCents, loading, mode }: Props) {
           );
         })}
       </ul>
+      {blockedRetailers.length > 0 && (
+        <div className="mt-4 rounded-md border border-[var(--brass-400)]/25 bg-[rgba(180,140,60,0.08)] px-3 py-2 text-xs text-[var(--parchment)]/70">
+          <p className="font-medium text-[var(--brass-300)]">
+            Some big-box stores could not be auto-read (bot-blocked). Check manually:
+          </p>
+          <ul className="mt-1.5 space-y-1">
+            {blockedRetailers.slice(0, 8).map((b) => (
+              <li key={`${b.retailerName}-${b.url}`}>
+                <button
+                  type="button"
+                  onClick={() => void openProductLink(b.url)}
+                  className="text-[var(--emerald-300)] underline-offset-2 hover:underline"
+                >
+                  {b.retailerName}
+                </button>
+                <span className="text-[var(--parchment)]/45"> — {b.reason}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

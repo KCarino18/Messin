@@ -379,6 +379,18 @@ export async function setBudget(amountCents: number) {
   return { amountCents: budget.amountCents };
 }
 
+const OFFER_STALE_MS = 15 * 60 * 1000;
+
+function dedupeBlocked(blocked: BlockedRetailer[]): BlockedRetailer[] {
+  const seen = new Set<string>();
+  return blocked.filter((b) => {
+    const key = `${b.retailerId}|${b.url}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export async function getDeals(budgetCents: number, sealedTypes: string[] = []) {
   const normalizedTypes = [
     ...new Set(
@@ -388,19 +400,41 @@ export async function getDeals(budgetCents: number, sealedTypes: string[] = []) 
     ),
   ];
   if (normalizedTypes.length === 0) {
-    return { budgetCents, sealedTypes: normalizedTypes, deals: [], mode: "live" as const };
+    return {
+      budgetCents,
+      sealedTypes: normalizedTypes,
+      deals: [],
+      blockedRetailers: [] as BlockedRetailer[],
+      mode: "live" as const,
+    };
   }
 
   const where = { sealedType: { in: normalizedTypes } };
 
   const productRows = await db().product.findMany({ where, select: { id: true } });
   const productIds = productRows.map((p) => p.id);
+  const now = Date.now();
 
-  // Deep refresh every matching SKU so deals aren't stuck on TCGPlayer-only cache.
-  for (let i = 0; i < productIds.length; i += 4) {
-    await Promise.all(
-      productIds.slice(i, i + 4).map((id) => refreshOffers(id, { deep: true })),
+  const staleIds: string[] = [];
+  for (const id of productIds) {
+    const latest = await db().offer.findFirst({
+      where: { productId: id },
+      orderBy: { observedAt: "desc" },
+      select: { observedAt: true },
+    });
+    if (!latest || now - latest.observedAt.getTime() > OFFER_STALE_MS) {
+      staleIds.push(id);
+    }
+  }
+
+  const blockedRetailers: BlockedRetailer[] = [];
+  for (let i = 0; i < staleIds.length; i += 4) {
+    const batch = await Promise.all(
+      staleIds.slice(i, i + 4).map((id) => refreshOffers(id, { deep: true })),
     );
+    for (const result of batch) {
+      blockedRetailers.push(...result.blockedRetailers);
+    }
   }
 
   const products = await db().product.findMany({
@@ -462,6 +496,7 @@ export async function getDeals(budgetCents: number, sealedTypes: string[] = []) 
     budgetCents,
     sealedTypes: normalizedTypes,
     deals,
+    blockedRetailers: dedupeBlocked(blockedRetailers),
     mode: deals.some((d) => d.offer.isDemo) ? "demo" : "live",
   };
 }
