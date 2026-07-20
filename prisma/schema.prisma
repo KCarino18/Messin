@@ -86,3 +86,17 @@ model WatcherState {
   message      String?
   updatedAt    DateTime @updatedAt
 }
+
+/** Optional official retailer API credentials (Amazon PA-API, Walmart Affiliate). */
+model AppSettings {
+  id                 String   @id @default("default")
+  amazonAccessKey    String?
+  amazonSecretKey    String?
+  amazonPartnerTag   String?
+  amazonMarketplace  String?  @default("www.amazon.com")
+  walmartConsumerId  String?
+  walmartPrivateKey  String?
+  walmartKeyVersion  String?  @default("1")
+  walmartPublisherId String?
+  updatedAt          DateTime @updatedAt
+}

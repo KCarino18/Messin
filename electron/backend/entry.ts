@@ -31,6 +31,13 @@ import {
 } from "../../src/lib/sealedTypes";
 import type { ProductSeed } from "../../src/lib/retailers/types";
 import { buildProductRoiFromCatalog } from "../../src/lib/roi/service";
+import {
+  credentialsFromDbRow,
+  normalizeSettingsPatch,
+  setApiCredentials,
+  toPublicSettings,
+  type ApiSettingsPatch,
+} from "../../src/lib/settings/apiCredentials";
 
 let prisma: PrismaClient | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -58,8 +65,10 @@ export async function initBackend(options: {
   prisma = createPrisma(dbPath);
   // Packaged upgrades keep the old userData DB; apply missing columns before any ORM reads.
   await ensureSchema();
+  await ensureAppSettingsTable();
   await syncCatalog();
   await ensureBudget();
+  await loadApiCredentialsFromDb();
   // Purge stale radar rows quickly; fill live listings in the background.
   void resetPreorderEventsForRadar();
   startWatcher(pollMs);
@@ -217,6 +226,8 @@ async function ensureSchema() {
     `CREATE INDEX IF NOT EXISTS "PreorderEvent_sealedType_idx" ON "PreorderEvent"("sealedType")`,
   );
 
+  await ensureAppSettingsTable();
+
   // Retired mistaken SKU name — collectors are Displays, not Boxes.
   await db().$executeRawUnsafe(
     `UPDATE "Product" SET "sealedType" = 'collector_booster_display' WHERE "sealedType" = 'collector_booster_box'`,
@@ -224,6 +235,29 @@ async function ensureSchema() {
   await db().$executeRawUnsafe(
     `UPDATE "PreorderEvent" SET "sealedType" = 'collector_booster_display' WHERE "sealedType" = 'collector_booster_box'`,
   );
+}
+
+async function ensureAppSettingsTable() {
+  if (await tableExists("AppSettings")) return;
+  await db().$executeRawUnsafe(
+    `CREATE TABLE "AppSettings" (
+      "id" TEXT NOT NULL PRIMARY KEY DEFAULT 'default',
+      "amazonAccessKey" TEXT,
+      "amazonSecretKey" TEXT,
+      "amazonPartnerTag" TEXT,
+      "amazonMarketplace" TEXT DEFAULT 'www.amazon.com',
+      "walmartConsumerId" TEXT,
+      "walmartPrivateKey" TEXT,
+      "walmartKeyVersion" TEXT DEFAULT '1',
+      "walmartPublisherId" TEXT,
+      "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+  );
+}
+
+async function loadApiCredentialsFromDb() {
+  const row = await db().appSettings.findUnique({ where: { id: "default" } });
+  setApiCredentials(credentialsFromDbRow(row));
 }
 
 function db() {
@@ -377,6 +411,57 @@ export async function setBudget(amountCents: number) {
     update: { amountCents },
   });
   return { amountCents: budget.amountCents };
+}
+
+export async function getApiSettings() {
+  const row = await db().appSettings.findUnique({ where: { id: "default" } });
+  return toPublicSettings(row);
+}
+
+export async function setApiSettings(patch: ApiSettingsPatch) {
+  const normalized = normalizeSettingsPatch(patch);
+  const row = await db().appSettings.upsert({
+    where: { id: "default" },
+    create: {
+      id: "default",
+      amazonAccessKey: normalized.amazonAccessKey ?? null,
+      amazonSecretKey: normalized.amazonSecretKey ?? null,
+      amazonPartnerTag: normalized.amazonPartnerTag ?? null,
+      amazonMarketplace: normalized.amazonMarketplace ?? "www.amazon.com",
+      walmartConsumerId: normalized.walmartConsumerId ?? null,
+      walmartPrivateKey: normalized.walmartPrivateKey ?? null,
+      walmartKeyVersion: normalized.walmartKeyVersion ?? "1",
+      walmartPublisherId: normalized.walmartPublisherId ?? null,
+    },
+    update: {
+      ...(normalized.amazonAccessKey !== undefined
+        ? { amazonAccessKey: normalized.amazonAccessKey }
+        : {}),
+      ...(normalized.amazonSecretKey !== undefined
+        ? { amazonSecretKey: normalized.amazonSecretKey }
+        : {}),
+      ...(normalized.amazonPartnerTag !== undefined
+        ? { amazonPartnerTag: normalized.amazonPartnerTag }
+        : {}),
+      ...(normalized.amazonMarketplace !== undefined
+        ? { amazonMarketplace: normalized.amazonMarketplace }
+        : {}),
+      ...(normalized.walmartConsumerId !== undefined
+        ? { walmartConsumerId: normalized.walmartConsumerId }
+        : {}),
+      ...(normalized.walmartPrivateKey !== undefined
+        ? { walmartPrivateKey: normalized.walmartPrivateKey }
+        : {}),
+      ...(normalized.walmartKeyVersion !== undefined
+        ? { walmartKeyVersion: normalized.walmartKeyVersion }
+        : {}),
+      ...(normalized.walmartPublisherId !== undefined
+        ? { walmartPublisherId: normalized.walmartPublisherId }
+        : {}),
+    },
+  });
+  setApiCredentials(credentialsFromDbRow(row));
+  return toPublicSettings(row);
 }
 
 export async function getDeals(budgetCents: number, sealedTypes: string[] = []) {

@@ -3,6 +3,34 @@ import type { SealedTypeId } from "@/lib/sealedTypes";
 export type DesktopApi = {
   getBudget: () => Promise<{ amountCents: number }>;
   setBudget: (amountCents: number) => Promise<{ amountCents: number }>;
+  getApiSettings: () => Promise<{
+    amazon: {
+      configured: boolean;
+      partnerTag: string | null;
+      marketplace: string | null;
+      accessKeyHint: string | null;
+    };
+    walmart: {
+      configured: boolean;
+      consumerIdHint: string | null;
+      publisherId: string | null;
+      keyVersion: string | null;
+    };
+  }>;
+  setApiSettings: (patch: Record<string, string>) => Promise<{
+    amazon: {
+      configured: boolean;
+      partnerTag: string | null;
+      marketplace: string | null;
+      accessKeyHint: string | null;
+    };
+    walmart: {
+      configured: boolean;
+      consumerIdHint: string | null;
+      publisherId: string | null;
+      keyVersion: string | null;
+    };
+  }>;
   getDeals: (
     budgetCents: number,
     sealedTypes?: SealedTypeId[],

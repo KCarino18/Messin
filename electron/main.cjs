@@ -42,6 +42,8 @@ async function initBackend() {
 }
 
 function registerIpc() {
+  ipcMain.handle("settings:get", async () => backend.getApiSettings());
+  ipcMain.handle("settings:set", async (_e, patch) => backend.setApiSettings(patch));
   ipcMain.handle("budget:get", async () => backend.getBudget());
   ipcMain.handle("budget:set", async (_e, amountCents) => backend.setBudget(amountCents));
   ipcMain.handle("deals:list", async (_e, budgetCents, sealedTypes = []) =>

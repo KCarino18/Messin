@@ -1,6 +1,6 @@
 {
   "name": "mtg-budget",
-  "version": "0.3.17",
+  "version": "0.3.19",
   "private": true,
   "description": "MTG Budget desktop app for sealed Magic product deals",
   "author": "MTG Budget",
@@ -9,7 +9,7 @@
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && electron .\"",
     "build": "prisma generate && node scripts/bundle-electron-backend.mjs && vite build",
     "lint": "eslint",
-    "test": "tsx src/lib/sealedTypes.test.ts && tsx src/lib/retailers/scorer.test.ts && tsx src/lib/roi/simulate.test.ts",
+    "test": "tsx src/lib/sealedTypes.test.ts && tsx src/lib/retailers/scorer.test.ts && tsx src/lib/retailers/productIds.test.ts && tsx src/lib/roi/simulate.test.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",

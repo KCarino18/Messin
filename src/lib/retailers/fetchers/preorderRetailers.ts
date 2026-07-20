@@ -5,6 +5,8 @@ import {
   type RetailerId,
 } from "../allowlist";
 import { fetchCardKingdomOffers } from "./cardKingdom";
+import { fetchAmazonPaApiOffers } from "./amazonPaApi";
+import { fetchWalmartAffiliateOffers } from "./walmartAffiliateApi";
 import { blockedRetailer, type BlockedRetailer } from "../blocked";
 import { fetchPage, fetchText } from "../http";
 import { listingsFromJsonLd, listingFromOgMeta } from "../parsePrice";
@@ -460,13 +462,23 @@ async function fetchForRetailer(
   retailerId: RetailerId,
   blocked?: BlockedRetailer[],
 ): Promise<RawOffer[]> {
-  // Always try curated direct URLs first (beats broken search/JS storefronts).
-  const known = await fetchKnownListingUrls(product, retailerId, blocked);
+  let apiOffers: RawOffer[] = [];
+  if (retailerId === "amazon") {
+    apiOffers = await fetchAmazonPaApiOffers(product);
+  } else if (retailerId === "walmart") {
+    apiOffers = await fetchWalmartAffiliateOffers(product);
+  }
+
+  // Curated direct URLs (HTML scrape) when API did not return a price.
+  const known =
+    apiOffers.length > 0
+      ? apiOffers
+      : await fetchKnownListingUrls(product, retailerId, blocked);
 
   let discovered: RawOffer[] = [];
   switch (retailerId) {
     case "amazon":
-      discovered = await fetchAmazon(product);
+      discovered = apiOffers.length > 0 ? [] : await fetchAmazon(product);
       break;
     case "gamenerdz":
       discovered = await fetchGameNerdz(product);
@@ -481,11 +493,14 @@ async function fetchForRetailer(
       discovered = await fetchCardKingdomOffers(product);
       break;
     case "target":
-    case "walmart":
     case "best_buy":
     case "game_stop":
     case "barnes_and_noble":
       discovered = await fetchBigBox(product, retailerId);
+      break;
+    case "walmart":
+      discovered =
+        apiOffers.length > 0 ? [] : await fetchBigBox(product, retailerId);
       break;
     default:
       discovered = await fetchGenericRetailer(product, retailerId);

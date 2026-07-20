@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("mtgDesktop", {
   getBudget: () => ipcRenderer.invoke("budget:get"),
   setBudget: (amountCents) => ipcRenderer.invoke("budget:set", amountCents),
+  getApiSettings: () => ipcRenderer.invoke("settings:get"),
+  setApiSettings: (patch) => ipcRenderer.invoke("settings:set", patch),
   getDeals: (budgetCents, sealedTypes = []) =>
     ipcRenderer.invoke("deals:list", budgetCents, sealedTypes),
   searchProducts: (q) => ipcRenderer.invoke("products:search", q),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { ApiSettingsPanel } from "@/components/ApiSettingsPanel";
 import { BudgetSetter } from "@/components/BudgetSetter";
 import { DealList, type Deal } from "@/components/DealList";
 import { ProductSearch } from "@/components/ProductSearch";
@@ -61,6 +62,7 @@ export function HomeClient({ initialBudgetCents }: { initialBudgetCents: number 
             <div className="max-w-3xl">
               <SealedTypeFilter selected={sealedTypes} onChange={setSealedTypes} />
             </div>
+            <ApiSettingsPanel />
           </div>
 
           <button
