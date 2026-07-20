@@ -1,6 +1,6 @@
 {
   "name": "mtg-budget",
-  "version": "0.3.20",
+  "version": "0.3.21",
   "private": true,
   "description": "MTG Budget desktop app for sealed Magic product deals",
   "author": "MTG Budget",
@@ -29,7 +29,6 @@
     "better-sqlite3": "^12.11.1",
     "dotenv": "^17.4.2",
     "electron-updater": "^6.8.9",
-    "electron-updater": "^6.6.2",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "zod": "^4.4.3"

@@ -16,7 +16,9 @@ export function UpdateBanner() {
 
   useEffect(() => {
     try {
-      return desktop().onUpdater((payload) => {
+      const api = desktop();
+      if (typeof api.onUpdater !== "function") return undefined;
+      return api.onUpdater((payload) => {
         setUpdate(payload as UpdateStatus);
       });
     } catch {

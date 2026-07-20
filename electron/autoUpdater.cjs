@@ -1,18 +1,24 @@
 const { app, dialog } = require("electron");
-const { autoUpdater } = require("electron-updater");
 
 /**
  * Check GitHub Releases for a newer installer on startup.
- * Packaged builds only — dev mode skips updates.
+ * Packaged builds only — never blocks or crashes app launch on failure.
  */
 function setupAutoUpdater(getMainWindow) {
   if (!app.isPackaged) {
     return { checkForUpdates() {} };
   }
 
+  let autoUpdater;
+  try {
+    ({ autoUpdater } = require("electron-updater"));
+  } catch (error) {
+    console.error("electron-updater unavailable; skipping auto-update", error);
+    return { checkForUpdates() {} };
+  }
+
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.autoRunAppAfterInstall = true;
 
   const send = (payload) => {
     const win = getMainWindow();
@@ -72,12 +78,11 @@ function setupAutoUpdater(getMainWindow) {
 
   return {
     checkForUpdates() {
-      // Defer slightly so the window can paint before the network call.
       setTimeout(() => {
         void autoUpdater.checkForUpdates().catch((error) => {
           console.error("checkForUpdates failed", error);
         });
-      }, 2500);
+      }, 8000);
     },
   };
 }

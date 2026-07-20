@@ -1,12 +1,11 @@
 const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
-const { setupAutoUpdater } = require("./autoUpdater.cjs");
 
 let mainWindow = null;
 let backend = null;
 let unsubscribePreorders = null;
-let updater = null;
+let updater = { checkForUpdates() {} };
 
 function resourcePath(...parts) {
   if (app.isPackaged) {
@@ -16,8 +15,6 @@ function resourcePath(...parts) {
 }
 
 function loadBackend() {
-  // Keep backend inside app.asar so Node can resolve unpacked native deps
-  // from app.asar/node_modules (resources/backend.dist.cjs cannot).
   const candidate = path.join(__dirname, "backend.dist.cjs");
   // eslint-disable-next-line import/no-dynamic-require, global-require
   return require(candidate);
@@ -91,7 +88,7 @@ function createWindow() {
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
-    updater?.checkForUpdates();
+    updater.checkForUpdates();
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -116,9 +113,15 @@ async function boot() {
     }
     await initBackend();
     registerIpc();
-    updater = setupAutoUpdater(() => mainWindow);
+    try {
+      const { setupAutoUpdater } = require("./autoUpdater.cjs");
+      updater = setupAutoUpdater(() => mainWindow);
+    } catch (error) {
+      console.error("Auto-updater setup failed", error);
+    }
     createWindow();
   } catch (error) {
+    console.error("MTG Budget failed to start", error);
     dialog.showErrorBox(
       "MTG Budget failed to start",
       error instanceof Error ? error.message : String(error),
@@ -127,14 +130,26 @@ async function boot() {
   }
 }
 
-app.whenReady().then(() => {
-  void boot();
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
     }
   });
-});
+
+  app.whenReady().then(() => {
+    void boot();
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        void boot();
+      }
+    });
+  });
+}
 
 app.on("before-quit", () => {
   unsubscribePreorders?.();
@@ -147,7 +162,6 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-// Keep reference for packaging tools that expect template copy helper
 if (!fs.existsSync(path.join(__dirname, "preload.cjs"))) {
   throw new Error("Missing electron preload");
 }

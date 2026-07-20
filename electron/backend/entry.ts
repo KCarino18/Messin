@@ -256,8 +256,13 @@ async function ensureAppSettingsTable() {
 }
 
 async function loadApiCredentialsFromDb() {
-  const row = await db().appSettings.findUnique({ where: { id: "default" } });
-  setApiCredentials(credentialsFromDbRow(row));
+  try {
+    const row = await db().appSettings.findUnique({ where: { id: "default" } });
+    setApiCredentials(credentialsFromDbRow(row));
+  } catch (error) {
+    console.error("Failed to load API credentials; continuing without official APIs", error);
+    setApiCredentials(credentialsFromDbRow(null));
+  }
 }
 
 function db() {
@@ -297,9 +302,18 @@ async function syncCatalog() {
         searchText: productSearchText(p),
       },
     });
-    // Quick live refresh (TCGPlayer + Card Kingdom). Deep web search runs on demand.
-    await refreshOffers(p.id, { deep: false });
   }
+
+  // Refresh live prices in the background so startup is not blocked on network calls.
+  void (async () => {
+    for (const p of SEALED_CATALOG) {
+      try {
+        await refreshOffers(p.id, { deep: false });
+      } catch (error) {
+        console.error("Background catalog refresh failed", p.id, error);
+      }
+    }
+  })();
 }
 
 async function ensureBudget() {
