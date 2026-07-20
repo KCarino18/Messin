@@ -150,9 +150,8 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
             </h2>
           </div>
           <p className="mt-1 text-xs text-[var(--parchment)]/55">
-            Just-released + unreleased · live listings from specialty shops
-            (Flipside, SCG, Card Kingdom, Miniature Market, Forge &amp; Fire,
-            and more). Big-box prices appear only when a public page is readable.
+            Unreleased sets only · Amazon, Forge &amp; Fire, Flipside, SCG, Card
+            Kingdom, Miniature Market, GameNerdz, and more
           </p>
         </div>
         {onCloseMobile && (
@@ -192,7 +191,7 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
             onChange={(e) => setSelectedSet(e.target.value)}
             className="w-full rounded border border-[var(--line)] bg-[rgba(8,14,12,0.95)] px-2.5 py-2 text-sm text-[var(--parchment)] outline-none focus:border-[var(--emerald-400)]/50"
           >
-            <option value={ALL_SETS}>All new / upcoming sets</option>
+            <option value={ALL_SETS}>All upcoming sets</option>
             {setOptions.map((setName) => (
               <option key={setName} value={setName}>
                 {setName}
@@ -210,7 +209,7 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
       <ul className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3">
         {visibleEvents.length === 0 && (
           <li className="px-1 text-sm text-[var(--parchment)]/50">
-            No matching new-set preorders for the selected set / sealed types.
+            No matching upcoming preorders for the selected set / sealed types.
           </li>
         )}
         {visibleEvents.map((event) => (
@@ -221,14 +220,8 @@ export function PreorderRadar({ mobileOpen, onCloseMobile }: Props) {
             }`}
           >
             <div className="flex items-center justify-between gap-2">
-              <span
-                className={`text-[10px] uppercase tracking-widest ${
-                  event.releaseBucket === "just_released"
-                    ? "text-[var(--brass-300)]"
-                    : "text-[var(--emerald-300)]"
-                }`}
-              >
-                {event.releaseBucket === "just_released" ? "Just released" : "Preorder"}
+              <span className="text-[10px] uppercase tracking-widest text-[var(--emerald-300)]">
+                Preorder
                 {event.isMsrp ? " · MSRP" : " · Above MSRP"}
               </span>
               <span className="text-[10px] text-[var(--parchment)]/40">

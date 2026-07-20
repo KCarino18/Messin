@@ -56,7 +56,8 @@ export async function initBackend(options: {
   await ensureSchema();
   await syncCatalog();
   await ensureBudget();
-  await resetPreorderEventsForRadar();
+  // Purge stale radar rows quickly; fill live listings in the background.
+  void resetPreorderEventsForRadar();
   startWatcher(pollMs);
   return { ok: true as const };
 }
@@ -271,27 +272,45 @@ async function ensureBudget() {
   });
 }
 
+function offerIsVisible(o: { rejected: boolean; inStock: boolean; isPreorder: boolean }) {
+  return !o.rejected && (o.inStock || o.isPreorder);
+}
+
+function productSeedFromDb(product: {
+  id: string;
+  name: string;
+  setName: string;
+  category: string;
+  sealedType: string;
+  releaseDate: string;
+  msrpCents: number;
+}): ProductSeed {
+  const catalog = catalogById(product.id);
+  const sealedType =
+    normalizeSealedType(product.sealedType) ??
+    (product.sealedType as SealedTypeId);
+  return {
+    id: product.id,
+    name: product.name,
+    setName: product.setName,
+    category: product.category as ProductSeed["category"],
+    sealedType,
+    releaseDate: catalog?.releaseDate ?? product.releaseDate,
+    msrpCents: product.msrpCents,
+    packCount: catalog?.packCount,
+    tcgplayerGroupId: catalog?.tcgplayerGroupId,
+    tcgplayerProductId: catalog?.tcgplayerProductId,
+    listingUrls: catalog?.listingUrls,
+  };
+}
+
 async function refreshOffers(
   productId: string,
   options: { deep?: boolean } = {},
 ) {
   const product = await db().product.findUnique({ where: { id: productId } });
   if (!product) return [];
-  const catalog = catalogById(productId);
-  const sealedType =
-    normalizeSealedType(product.sealedType) ??
-    (product.sealedType as SealedTypeId);
-  const seed: ProductSeed = {
-    id: product.id,
-    name: product.name,
-    setName: product.setName,
-    category: product.category as ProductSeed["category"],
-    sealedType,
-    releaseDate: product.releaseDate,
-    msrpCents: product.msrpCents,
-    tcgplayerGroupId: catalog?.tcgplayerGroupId,
-    tcgplayerProductId: catalog?.tcgplayerProductId,
-  };
+  const seed = productSeedFromDb(product);
   const { offers, mode } = await fetchOffersForProduct(seed, {
     deep: options.deep ?? true,
   });
@@ -314,10 +333,8 @@ async function refreshOffers(
       rejectReason: o.rejectReason,
     })),
   });
-  return db().offer.findMany({
-    where: { productId, rejected: false, inStock: true },
-    orderBy: { totalCents: "asc" },
-  });
+  const stored = await db().offer.findMany({ where: { productId } });
+  return stored.filter(offerIsVisible).sort((a, b) => a.totalCents - b.totalCents);
 }
 
 function enrichOffer(o: {
@@ -371,50 +388,25 @@ export async function getDeals(budgetCents: number, sealedTypes: string[] = []) 
 
   const where = { sealedType: { in: normalizedTypes } };
 
-  let products = await db().product.findMany({
-    where,
-    include: {
-      offers: {
-        where: { rejected: false, inStock: true },
-        orderBy: { totalCents: "asc" },
-        take: 1,
-      },
-    },
-  });
+  const productRows = await db().product.findMany({ where, select: { id: true } });
+  const productIds = productRows.map((p) => p.id);
 
-  // Fill gaps with a deep web search; catalog sync already stored TCGPlayer + Card Kingdom.
-  const missing = products.filter((x) => x.offers.length === 0).map((p) => p.id);
-  for (let i = 0; i < missing.length; i += 3) {
+  // Deep refresh every matching SKU so deals aren't stuck on TCGPlayer-only cache.
+  for (let i = 0; i < productIds.length; i += 4) {
     await Promise.all(
-      missing.slice(i, i + 3).map((id) => refreshOffers(id, { deep: true })),
+      productIds.slice(i, i + 4).map((id) => refreshOffers(id, { deep: true })),
     );
   }
 
-  // Opportunistically deepen a few visible products each load (real store pages).
-  const deepen = products
-    .filter((p) => p.offers.length > 0)
-    .slice(0, 4)
-    .map((p) => p.id);
-  for (let i = 0; i < deepen.length; i += 2) {
-    await Promise.all(
-      deepen.slice(i, i + 2).map((id) => refreshOffers(id, { deep: true })),
-    );
-  }
-
-  products = await db().product.findMany({
+  const products = await db().product.findMany({
     where,
-    include: {
-      offers: {
-        where: { rejected: false, inStock: true },
-        orderBy: { totalCents: "asc" },
-        take: 1,
-      },
-    },
+    include: { offers: true },
   });
 
   const baseDeals = products
     .map((p) => {
-      const best = p.offers[0];
+      const visible = p.offers.filter(offerIsVisible).sort((a, b) => a.totalCents - b.totalCents);
+      const best = visible[0];
       if (!best || best.totalCents > budgetCents) return null;
       return {
         product: {
@@ -571,12 +563,11 @@ export async function getOffers(productId: string) {
   const offers = await refreshOffers(productId, { deep: true });
   const product = await db().product.findUnique({ where: { id: productId } });
   if (!product) return null;
-  const visible = offers.filter((o) => !o.rejected && o.inStock);
   return {
     product,
-    offers: visible.map(enrichOffer),
-    best: visible[0] ? enrichOffer(visible[0]) : null,
-    mode: visible.some((o) => o.isDemo) ? "demo" : "live",
+    offers: offers.map(enrichOffer),
+    best: offers[0] ? enrichOffer(offers[0]) : null,
+    mode: offers.some((o) => o.isDemo) ? "demo" : "live",
   };
 }
 
@@ -637,10 +628,11 @@ async function upsertRadarLive(
   },
   createdAt: Date,
 ) {
-  const already = await db().preorderEvent.findFirst({
+  const existing = await db().preorderEvent.findFirst({
     where: { productId: seed.id, retailerId },
+    orderBy: { createdAt: "desc" },
   });
-  if (already) return false;
+  if (existing) return false;
   const taxCents = estimateTaxCents(live.itemPriceCents, live.shippingCents);
   await db().preorderEvent.create({
     data: {
@@ -665,6 +657,37 @@ async function upsertRadarLive(
   return true;
 }
 
+async function enrichRadarFromLive(eligible: ProductSeed[]) {
+  const now = Date.now();
+  let added = 0;
+
+  for (const seed of eligible) {
+    const retailers = [...new Set([...RADAR_SEED_RETAILERS, ...PREORDER_WATCH_RETAILERS])];
+    for (let i = 0; i < retailers.length; i += 5) {
+      const batch = retailers.slice(i, i + 5);
+      const results = await Promise.allSettled(
+        batch.map(async (retailerId) => {
+          const live = await liveOfferForRetailer(seed, retailerId);
+          if (!live) return null;
+          return { retailerId, live };
+        }),
+      );
+      for (const result of results) {
+        if (result.status !== "fulfilled" || !result.value) continue;
+        const ok = await upsertRadarLive(
+          seed,
+          result.value.retailerId,
+          result.value.live,
+          new Date(now - (8 + added * 2) * 60_000),
+        );
+        if (ok) added += 1;
+      }
+    }
+  }
+
+  return added;
+}
+
 async function resetPreorderEventsForRadar() {
   const eligible = preorderCatalog();
   const eligibleIds = new Set(eligible.map((p) => p.id));
@@ -678,34 +701,11 @@ async function resetPreorderEventsForRadar() {
     },
   });
 
-  const now = Date.now();
-  let added = 0;
-
-  // Parallel seed across a shortlist so radar isn't stuck on Flipside/Forge only.
-  // Always try to fill missing retailer×product pairs (upsert skips duplicates).
-  for (const seed of eligible.slice(0, 8)) {
-    const results = await Promise.allSettled(
-      RADAR_SEED_RETAILERS.map(async (retailerId) => {
-        const live = await liveOfferForRetailer(seed, retailerId);
-        if (!live) return null;
-        return { retailerId, live };
-      }),
-    );
-    for (const result of results) {
-      if (result.status !== "fulfilled" || !result.value) continue;
-      const ok = await upsertRadarLive(
-        seed,
-        result.value.retailerId,
-        result.value.live,
-        new Date(now - (8 + added * 3) * 60_000),
-      );
-      if (ok) added += 1;
-    }
-    if (added >= 36) break;
-  }
+  await enrichRadarFromLive(eligible.slice(0, 10));
 
   // Fallback: at least one TCGPlayer/market event so the rail isn't empty.
   if ((await db().preorderEvent.count()) === 0) {
+    const now = Date.now();
     for (const seed of eligible.slice(0, 3)) {
       const live = await liveStreetPrice(seed);
       if (!live) continue;
@@ -719,46 +719,20 @@ async function resetPreorderEventsForRadar() {
   }
 }
 
-async function pollPreorders(pollMs: number) {
-  if (!prisma) return;
-  const targets = radarTargets();
-  if (targets.length === 0) return;
-
-  tick += 1;
-  const now = new Date();
-  const next = new Date(now.getTime() + pollMs);
-  const target = targets[tick % targets.length];
-  const retailerId =
-    PREORDER_WATCH_RETAILERS[tick % PREORDER_WATCH_RETAILERS.length]!;
-
-  const live = await liveOfferForRetailer(target, retailerId);
-  if (!prisma) return;
-  // Skip ticks with no real listing — never invent a preorder price.
-  if (!live) {
-    await db().watcherState.upsert({
-      where: { id: "preorder" },
-      create: {
-        id: "preorder",
-        status: "watching",
-        lastPolledAt: now,
-        nextPollAt: next,
-        message: `No live ${RETAILER_BY_ID[retailerId].name} listing for ${target.name}`,
-      },
-      update: {
-        status: "watching",
-        lastPolledAt: now,
-        nextPollAt: next,
-        message: `No live ${RETAILER_BY_ID[retailerId].name} listing for ${target.name}`,
-      },
-    });
-    return;
-  }
-
+async function recordPreorderHit(
+  target: ProductSeed,
+  retailerId: RetailerId,
+  live: {
+    itemPriceCents: number;
+    shippingCents: number;
+    url: string;
+  },
+  now: Date,
+) {
   const itemPriceCents = live.itemPriceCents;
   const shippingCents = live.shippingCents;
   const taxCents = estimateTaxCents(itemPriceCents, shippingCents);
   const totalCents = itemPriceCents + shippingCents + taxCents;
-  const productUrl = live.url;
 
   const existing = await db().preorderEvent.findFirst({
     where: { productId: target.id, retailerId },
@@ -785,11 +759,55 @@ async function pollPreorders(pollMs: number) {
       totalCents,
       msrpCents: target.msrpCents,
       isMsrp: itemPriceCents <= target.msrpCents,
-      url: productUrl,
+      url: live.url,
       eventType,
       isDemo: false,
     },
   });
+
+  return {
+    type: "preorder" as const,
+    event: {
+      ...event,
+      createdAt: event.createdAt.toISOString(),
+      releaseBucket: releaseBucket(target.releaseDate, now),
+      retailerName:
+        RETAILER_ALLOWLIST.find((r) => r.id === retailerId)?.name ?? retailerId,
+    },
+  };
+}
+
+async function pollPreorders(pollMs: number) {
+  if (!prisma) return;
+  const targets = radarTargets();
+  if (targets.length === 0) return;
+
+  tick += 1;
+  const now = new Date();
+  const next = new Date(now.getTime() + pollMs);
+  const target = targets[tick % targets.length]!;
+  const watch = PREORDER_WATCH_RETAILERS;
+  const batchSize = 5;
+  const start = (tick * batchSize) % watch.length;
+  const retailers = Array.from({ length: batchSize }, (_, i) => watch[(start + i) % watch.length]!);
+
+  const hits: Awaited<ReturnType<typeof recordPreorderHit>>[] = [];
+  const misses: string[] = [];
+
+  await Promise.all(
+    retailers.map(async (retailerId) => {
+      const live = await liveOfferForRetailer(target, retailerId);
+      if (!live) {
+        misses.push(RETAILER_BY_ID[retailerId].name);
+        return;
+      }
+      if (!prisma) return;
+      const payload = await recordPreorderHit(target, retailerId, live, now);
+      hits.push(payload);
+    }),
+  );
+
+  if (!prisma) return;
 
   await db().watcherState.upsert({
     where: { id: "preorder" },
@@ -799,35 +817,34 @@ async function pollPreorders(pollMs: number) {
       lastPolledAt: now,
       nextPollAt: next,
       message:
-        "Watching specialty shops + big-box when public prices are readable (Flipside, SCG, Card Kingdom, MM, Forge & Fire, Amazon/Target/Walmart when unblocked)",
+        hits.length > 0
+          ? `Live on ${hits.length} store(s) for ${target.name}`
+          : `No live listings (${misses.slice(0, 3).join(", ")}…) for ${target.name}`,
     },
     update: {
       status: "watching",
       lastPolledAt: now,
       nextPollAt: next,
       message:
-        "Watching specialty shops + big-box when public prices are readable (Flipside, SCG, Card Kingdom, MM, Forge & Fire, Amazon/Target/Walmart when unblocked)",
+        hits.length > 0
+          ? `Live on ${hits.length} store(s) for ${target.name}`
+          : `No live listings (${misses.slice(0, 3).join(", ")}…) for ${target.name}`,
     },
   });
 
-  const payload = {
-    type: "preorder",
-    event: {
-      ...event,
-      createdAt: event.createdAt.toISOString(),
-      releaseBucket: releaseBucket(target.releaseDate, now),
-      retailerName:
-        RETAILER_ALLOWLIST.find((r) => r.id === retailerId)?.name ?? retailerId,
-    },
-    watcher: {
-      lastPolledAt: now.toISOString(),
-      nextPollAt: next.toISOString(),
-      pollMs,
-      status: "watching",
-    },
-  };
-
-  for (const listener of listeners) listener(payload);
+  for (const payload of hits) {
+    for (const listener of listeners) {
+      listener({
+        ...payload,
+        watcher: {
+          lastPolledAt: now.toISOString(),
+          nextPollAt: next.toISOString(),
+          pollMs,
+          status: "watching",
+        },
+      });
+    }
+  }
 }
 
 function startWatcher(pollMs: number) {
@@ -878,13 +895,18 @@ export async function getPreorderSnapshot(pollMs = 60_000, sealedTypes: string[]
           message: watcher.message,
         }
       : null,
-    events: events.map((e) => ({
-      ...e,
-      createdAt: e.createdAt.toISOString(),
-      releaseBucket: releaseBucket(e.releaseDate),
-      retailerName:
-        RETAILER_ALLOWLIST.find((r) => r.id === e.retailerId)?.name ?? e.retailerId,
-    })),
+    events: events.map((e) => {
+      const seed = e.productId ? catalogById(e.productId) : undefined;
+      const releaseDate = seed?.releaseDate ?? e.releaseDate;
+      return {
+        ...e,
+        releaseDate,
+        createdAt: e.createdAt.toISOString(),
+        releaseBucket: releaseBucket(releaseDate),
+        retailerName:
+          RETAILER_ALLOWLIST.find((r) => r.id === e.retailerId)?.name ?? e.retailerId,
+      };
+    }),
   };
 }
 

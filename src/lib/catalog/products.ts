@@ -1,5 +1,5 @@
 import { cents } from "@/lib/money";
-import { isPreorderRadarEligible } from "@/lib/sealedTypes";
+import { isPreorderRadarEligible, isUpcomingSet } from "@/lib/sealedTypes";
 import type { ProductSeed } from "@/lib/retailers/types";
 
 /**
@@ -210,7 +210,7 @@ export const SEALED_CATALOG: ProductSeed[] = [
     setName: "Star Trek",
     category: "box",
     sealedType: "play_booster_box",
-    releaseDate: "2026-11-13",
+    releaseDate: "2026-11-20",
     msrpCents: cents(209.7),
     packCount: 30,
     tcgplayerGroupId: 24766,
@@ -222,7 +222,7 @@ export const SEALED_CATALOG: ProductSeed[] = [
     setName: "Star Trek",
     category: "box",
     sealedType: "collector_booster_display",
-    releaseDate: "2026-11-13",
+    releaseDate: "2026-11-20",
     msrpCents: cents(455.88),
     packCount: 12,
     tcgplayerGroupId: 24766,
@@ -234,7 +234,7 @@ export const SEALED_CATALOG: ProductSeed[] = [
     setName: "Star Trek",
     category: "bundle",
     sealedType: "bundle",
-    releaseDate: "2026-11-13",
+    releaseDate: "2026-11-20",
     msrpCents: cents(69.99),
     packCount: 9,
     tcgplayerGroupId: 24766,
@@ -246,7 +246,7 @@ export const SEALED_CATALOG: ProductSeed[] = [
     setName: "Star Trek",
     category: "bundle",
     sealedType: "specialty_bundle",
-    releaseDate: "2026-11-13",
+    releaseDate: "2026-11-20",
     msrpCents: cents(99.99),
     packCount: 9, // 8 play + 1 collector
     tcgplayerGroupId: 24766,
@@ -258,7 +258,7 @@ export const SEALED_CATALOG: ProductSeed[] = [
     setName: "Star Trek",
     category: "other",
     sealedType: "scene_box",
-    releaseDate: "2026-11-13",
+    releaseDate: "2026-11-20",
     msrpCents: cents(41.99),
     packCount: 3,
     tcgplayerGroupId: 24766,
@@ -540,11 +540,17 @@ export function preorderCatalog(now = new Date()): ProductSeed[] {
   return SEALED_CATALOG.filter((p) => isPreorderRadarEligible(p.releaseDate, now));
 }
 
-/** Unique set names currently eligible for Preorder Radar (sorted). */
+/** Unique set names with a future release date (sorted). */
 export function preorderSetNames(now = new Date()): string[] {
-  return [...new Set(preorderCatalog(now).map((p) => p.setName))].sort((a, b) =>
-    a.localeCompare(b),
-  );
+  const dates = new Map<string, string>();
+  for (const p of SEALED_CATALOG) {
+    if (!isUpcomingSet(p.releaseDate, now)) continue;
+    const prev = dates.get(p.setName);
+    if (!prev || p.releaseDate < prev) dates.set(p.setName, p.releaseDate);
+  }
+  return [...dates.entries()]
+    .sort((a, b) => a[1].localeCompare(b[1]) || a[0].localeCompare(b[0]))
+    .map(([setName]) => setName);
 }
 
 export function catalogById(id: string): ProductSeed | undefined {

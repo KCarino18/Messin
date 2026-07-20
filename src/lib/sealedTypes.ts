@@ -28,8 +28,8 @@ export function normalizeSealedType(id: string): SealedTypeId | null {
   return null;
 }
 
-/** Just-released window for the Preorder Radar (days). */
-export const JUST_RELEASED_DAYS = 35;
+/** Just-released window shown on the main deals feed (days). */
+export const JUST_RELEASED_DAYS = 14;
 
 export function releaseBucket(
   releaseDateIso: string,
@@ -43,7 +43,12 @@ export function releaseBucket(
   return "released";
 }
 
+/** Preorder Radar: unreleased sets only (release date still in the future). */
 export function isPreorderRadarEligible(releaseDateIso: string, now = new Date()): boolean {
-  const bucket = releaseBucket(releaseDateIso, now);
-  return bucket === "preorder" || bucket === "just_released";
+  return releaseBucket(releaseDateIso, now) === "preorder";
+}
+
+/** Sets with a street date still ahead of today (for the radar set dropdown). */
+export function isUpcomingSet(releaseDateIso: string, now = new Date()): boolean {
+  return isPreorderRadarEligible(releaseDateIso, now);
 }
