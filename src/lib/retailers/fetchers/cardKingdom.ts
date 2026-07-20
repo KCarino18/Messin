@@ -1,4 +1,4 @@
-import { fetchText } from "../http";
+import { fetchPage } from "../http";
 import { setSlug, titleMatchesProduct } from "../productMatch";
 import type { ProductSeed, RawOffer } from "../types";
 import type { ParsedListing } from "../parsePrice";
@@ -84,7 +84,7 @@ async function loadCardKingdomSealedPage(setName: string) {
   if (hit && Date.now() - hit.at < SEALED_CACHE_TTL) return hit;
 
   const url = `https://www.cardkingdom.com/mtg/${slug}/sealed`;
-  const res = await fetchText(url);
+  const res = await fetchPage(url);
   if (!res.ok || res.text.length < 500) return null;
   const entry = { at: Date.now(), html: res.text, url: res.url };
   sealedPageCache.set(cacheKey, entry);

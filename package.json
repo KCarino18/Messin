@@ -1,6 +1,6 @@
 {
   "name": "mtg-budget",
-  "version": "0.3.16",
+  "version": "0.3.17",
   "private": true,
   "description": "MTG Budget desktop app for sealed Magic product deals",
   "author": "MTG Budget",
@@ -63,6 +63,7 @@
     "files": [
       "electron/main.cjs",
       "electron/preload.cjs",
+      "electron/browserFetch.cjs",
       "electron/backend.dist.cjs",
       "electron/renderer/**/*",
       "package.json"

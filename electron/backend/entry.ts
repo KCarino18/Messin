@@ -16,6 +16,8 @@ import {
 } from "../../src/lib/retailers/allowlist";
 import { fetchOffersForProduct } from "../../src/lib/retailers/adapters";
 import { fetchPreorderWatchOffers } from "../../src/lib/retailers/fetchers/preorderRetailers";
+import type { BlockedRetailer } from "../../src/lib/retailers/blocked";
+import { setBrowserFetch, type PageFetchResult } from "../../src/lib/retailers/http";
 import { dealScore, scoreOffer } from "../../src/lib/retailers/scorer";
 import {
   estimateTcgShippingCents,
@@ -44,8 +46,10 @@ export async function initBackend(options: {
   dbPath: string;
   templateDbPath: string;
   pollMs?: number;
+  browserFetch?: (url: string) => Promise<PageFetchResult>;
 }) {
-  const { dbPath, templateDbPath, pollMs = 60_000 } = options;
+  const { dbPath, templateDbPath, pollMs = 60_000, browserFetch } = options;
+  if (browserFetch) setBrowserFetch(browserFetch);
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   if (!fs.existsSync(dbPath) && fs.existsSync(templateDbPath)) {
     fs.copyFileSync(templateDbPath, dbPath);
@@ -309,9 +313,9 @@ async function refreshOffers(
   options: { deep?: boolean } = {},
 ) {
   const product = await db().product.findUnique({ where: { id: productId } });
-  if (!product) return [];
+  if (!product) return { offers: [], blockedRetailers: [] as BlockedRetailer[] };
   const seed = productSeedFromDb(product);
-  const { offers, mode } = await fetchOffersForProduct(seed, {
+  const { offers, mode, blockedRetailers } = await fetchOffersForProduct(seed, {
     deep: options.deep ?? true,
   });
   const scored = offers.map((o) => scoreOffer(o, product.msrpCents));
@@ -334,7 +338,8 @@ async function refreshOffers(
     })),
   });
   const stored = await db().offer.findMany({ where: { productId } });
-  return stored.filter(offerIsVisible).sort((a, b) => a.totalCents - b.totalCents);
+  const visible = stored.filter(offerIsVisible).sort((a, b) => a.totalCents - b.totalCents);
+  return { offers: visible, blockedRetailers };
 }
 
 function enrichOffer(o: {
@@ -560,7 +565,7 @@ export async function searchProducts(q: string) {
 }
 
 export async function getOffers(productId: string) {
-  const offers = await refreshOffers(productId, { deep: true });
+  const { offers, blockedRetailers } = await refreshOffers(productId, { deep: true });
   const product = await db().product.findUnique({ where: { id: productId } });
   if (!product) return null;
   return {
@@ -568,12 +573,13 @@ export async function getOffers(productId: string) {
     offers: offers.map(enrichOffer),
     best: offers[0] ? enrichOffer(offers[0]) : null,
     mode: offers.some((o) => o.isDemo) ? "demo" : "live",
+    blockedRetailers,
   };
 }
 
 /** Buy-price vs simulated singles EV / break-even chance for a sealed SKU. */
 export async function getProductRoi(productId: string) {
-  const offers = await refreshOffers(productId, { deep: true });
+  const { offers } = await refreshOffers(productId, { deep: true });
   const product = await db().product.findUnique({ where: { id: productId } });
   if (!product) return null;
 

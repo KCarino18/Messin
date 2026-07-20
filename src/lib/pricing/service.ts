@@ -57,7 +57,7 @@ export async function refreshProductOffers(productId: string) {
   if (!product) return [];
 
   const seed = toSeed(product);
-  const { offers, mode } = await fetchOffersForProduct(seed);
+  const { offers, mode, blockedRetailers: _blocked } = await fetchOffersForProduct(seed);
   const scored = offers.map((o) => scoreOffer(o, product.msrpCents));
 
   await prisma.offer.deleteMany({ where: { productId } });

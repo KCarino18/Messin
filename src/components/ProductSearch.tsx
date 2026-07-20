@@ -31,6 +31,9 @@ export function ProductSearch() {
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
+  const [blockedRetailers, setBlockedRetailers] = useState<
+    Array<{ retailerName: string; url: string; reason: string }>
+  >([]);
   const [mode, setMode] = useState<string>("demo");
   const [roi, setRoi] = useState<ProductRoiView | null>(null);
   const [roiLoading, setRoiLoading] = useState(false);
@@ -53,17 +56,20 @@ export function ProductSearch() {
     setSelectedId(id);
     setRoi(null);
     setRoiLoading(true);
+    setBlockedRetailers([]);
     try {
       const [offerData, roiData] = await Promise.all([
         desktop().getOffers(id) as Promise<{
           offers: Offer[];
           mode: string;
+          blockedRetailers?: Array<{ retailerName: string; url: string; reason: string }>;
         } | null>,
         desktop().getProductRoi(id) as Promise<ProductRoiView | null>,
       ]);
       if (offerData) {
         setOffers(offerData.offers);
         setMode(offerData.mode);
+        setBlockedRetailers(offerData.blockedRetailers ?? []);
       } else {
         setOffers([]);
       }
@@ -172,6 +178,27 @@ export function ProductSearch() {
               </li>
             ))}
           </ol>
+          {blockedRetailers.length > 0 && (
+            <div className="mt-3 rounded-md border border-[var(--brass-400)]/25 bg-[rgba(180,140,60,0.08)] px-3 py-2 text-xs text-[var(--parchment)]/70">
+              <p className="font-medium text-[var(--brass-300)]">
+                Could not auto-read these stores (bot-blocked). Check manually:
+              </p>
+              <ul className="mt-1.5 space-y-1">
+                {blockedRetailers.map((b) => (
+                  <li key={`${b.retailerName}-${b.url}`}>
+                    <button
+                      type="button"
+                      onClick={() => void openProductLink(b.url)}
+                      className="text-[var(--emerald-300)] underline-offset-2 hover:underline"
+                    >
+                      {b.retailerName}
+                    </button>
+                    <span className="text-[var(--parchment)]/45"> — {b.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -23,6 +23,7 @@ function loadBackend() {
 
 async function initBackend() {
   backend = loadBackend();
+  const { fetchPageWithBrowser } = require("./browserFetch.cjs");
   const userData = app.getPath("userData");
   const dbPath = path.join(userData, "mtg-budget.db");
   const templateDbPath = resourcePath("template.db");
@@ -30,6 +31,7 @@ async function initBackend() {
     dbPath,
     templateDbPath,
     pollMs: Number(process.env.PREORDER_POLL_MS || 60_000),
+    browserFetch: fetchPageWithBrowser,
   });
 
   unsubscribePreorders = backend.subscribePreorders((payload) => {

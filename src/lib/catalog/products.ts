@@ -134,6 +134,8 @@ export const SEALED_CATALOG: ProductSeed[] = [
         "https://flipsidegaming.com/products/mtg-the-hobbit-collector-booster-box",
       forge_and_fire:
         "https://forgeandfiregaming.com/magic-the-gathering/the-hobbit-collector-booster-booster-display/",
+      card_kingdom:
+        "https://www.cardkingdom.com/mtg-sealed/the-hobbit-collector-booster-box",
     },
   },
   {
@@ -150,6 +152,9 @@ export const SEALED_CATALOG: ProductSeed[] = [
     listingUrls: {
       miniature_market:
         "https://www.miniaturemarket.com/MTG-The-Hobbit-Bundle-Preorder/WOCD5664",
+      card_kingdom: "https://www.cardkingdom.com/mtg-sealed/the-hobbit-bundle",
+      forge_and_fire:
+        "https://forgeandfiregaming.com/magic-the-gathering/the-hobbit-bundle/",
     },
   },
   {
@@ -191,6 +196,12 @@ export const SEALED_CATALOG: ProductSeed[] = [
     packCount: 30,
     tcgplayerGroupId: 24684,
     tcgplayerProductId: 692980,
+    listingUrls: {
+      flipside_gaming:
+        "https://flipsidegaming.com/products/mtg-reality-fracture-play-booster-box",
+      card_kingdom:
+        "https://www.cardkingdom.com/mtg-sealed/reality-fracture-play-booster-box",
+    },
   },
   {
     id: "reality-fracture-collector-booster-display",

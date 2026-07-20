@@ -5,7 +5,8 @@ import {
   type RetailerId,
 } from "../allowlist";
 import { fetchCardKingdomOffers } from "./cardKingdom";
-import { fetchText } from "../http";
+import { blockedRetailer, type BlockedRetailer } from "../blocked";
+import { fetchPage, fetchText } from "../http";
 import { listingsFromJsonLd, listingFromOgMeta } from "../parsePrice";
 import {
   searchQueriesForProduct,
@@ -54,9 +55,9 @@ function toOffer(
 }
 
 async function listingsFromProductPage(pageUrl: string) {
-  const res = await fetchText(pageUrl);
+  const res = await fetchPage(pageUrl);
   if (!res.ok || res.text.length < 400) return [];
-  if (/\/blocked|captcha|access denied|robot check/i.test(res.url + res.text.slice(0, 2500))) {
+  if (res.blocked || /\/blocked|captcha|access denied|robot check/i.test(res.url + res.text.slice(0, 2500))) {
     return [];
   }
   const fromLd = listingsFromJsonLd(res.text, res.url);
@@ -291,8 +292,16 @@ async function fetchGenericRetailer(
     }
   }
 
-  // 2) DuckDuckGo fallback only if on-site search found nothing.
-  if (urls.length === 0) {
+  // 2) DuckDuckGo fallback only if on-site search found nothing (skip for big-box).
+  const bigBox = new Set([
+    "amazon.com",
+    "target.com",
+    "walmart.com",
+    "bestbuy.com",
+    "gamestop.com",
+    "barnesandnoble.com",
+  ]);
+  if (urls.length === 0 && !bigBox.has(site.replace(/^www\./, ""))) {
     for (const q of searchQueriesForProduct(product).slice(0, 1)) {
       try {
         const found = await searchRetailerUrls(q, cfg.domain.replace(/^www\./, ""));
@@ -329,7 +338,7 @@ async function fetchGenericRetailer(
 }
 
 async function scrapeHtmlPrice(pageUrl: string, product: ProductSeed) {
-  const res = await fetchText(pageUrl);
+  const res = await fetchPage(pageUrl);
   if (!res.ok || res.text.length < 400) return null;
   const title =
     res.text.match(/property="og:title" content="([^"]+)"/i)?.[1]?.trim() ??
@@ -417,10 +426,12 @@ async function fetchBigBox(
 async function fetchKnownListingUrls(
   product: ProductSeed,
   retailerId: RetailerId,
+  blocked?: BlockedRetailer[],
 ): Promise<RawOffer[]> {
   const direct = product.listingUrls?.[retailerId];
   if (!direct) return [];
   const offers: RawOffer[] = [];
+  const pageRes = await fetchPage(direct);
   let listings = await listingsFromProductPage(direct);
   if (listings.length === 0) {
     const fallback = await scrapeHtmlPrice(direct, product);
@@ -436,15 +447,21 @@ async function fetchKnownListingUrls(
       }),
     );
   }
+  if (offers.length === 0 && pageRes.blocked && blocked) {
+    blocked.push(
+      blockedRetailer(retailerId, direct, pageRes.blockedReason ?? "bot-wall"),
+    );
+  }
   return offers;
 }
 
 async function fetchForRetailer(
   product: ProductSeed,
   retailerId: RetailerId,
+  blocked?: BlockedRetailer[],
 ): Promise<RawOffer[]> {
   // Always try curated direct URLs first (beats broken search/JS storefronts).
-  const known = await fetchKnownListingUrls(product, retailerId);
+  const known = await fetchKnownListingUrls(product, retailerId, blocked);
 
   let discovered: RawOffer[] = [];
   switch (retailerId) {
@@ -489,6 +506,7 @@ async function fetchForRetailer(
 export async function fetchPreorderWatchOffers(
   product: ProductSeed,
   retailerId?: RetailerId,
+  blocked?: BlockedRetailer[],
 ): Promise<RawOffer[]> {
   const targets = retailerId ? [retailerId] : PREORDER_WATCH_RETAILERS;
   const out: RawOffer[] = [];
@@ -497,7 +515,7 @@ export async function fetchPreorderWatchOffers(
   for (let i = 0; i < targets.length; i += 4) {
     const batch = targets.slice(i, i + 4);
     const settled = await Promise.allSettled(
-      batch.map((id) => fetchForRetailer(product, id)),
+      batch.map((id) => fetchForRetailer(product, id, blocked)),
     );
     for (const result of settled) {
       if (result.status === "fulfilled") out.push(...result.value);

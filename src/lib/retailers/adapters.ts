@@ -2,6 +2,7 @@ import { buildDemoOffers } from "./demoOffers";
 import { fetchCardKingdomOffers } from "./fetchers/cardKingdom";
 import { fetchPreorderWatchOffers } from "./fetchers/preorderRetailers";
 import { fetchWebRetailerOffers } from "./fetchers/webListings";
+import type { BlockedRetailer } from "./blocked";
 import {
   estimateTcgShippingCents,
   fetchTcgPlayerPriceInGroup,
@@ -26,13 +27,22 @@ export async function fetchOffersForProduct(
 ): Promise<{
   offers: RawOffer[];
   mode: "demo" | "live";
+  blockedRetailers: BlockedRetailer[];
 }> {
   if (process.env.PRICE_MODE === "demo") {
-    return { offers: buildDemoOffers(product), mode: "demo" };
+    return { offers: buildDemoOffers(product), mode: "demo", blockedRetailers: [] };
   }
 
-  const offers = await fetchLiveOffers(product, options.deep ?? true);
-  return { offers, mode: "live" };
+  const blockedRetailers: BlockedRetailer[] = [];
+  const offers = await fetchLiveOffers(product, options.deep ?? true, blockedRetailers);
+  const seenBlocked = new Set<string>();
+  const uniqueBlocked = blockedRetailers.filter((b) => {
+    const key = `${b.retailerId}|${b.url}`;
+    if (seenBlocked.has(key)) return false;
+    seenBlocked.add(key);
+    return true;
+  });
+  return { offers, mode: "live", blockedRetailers: uniqueBlocked };
 }
 
 async function fetchTcgCsvOffers(product: ProductSeed): Promise<RawOffer[]> {
@@ -90,18 +100,17 @@ async function fetchTcgCsvOffers(product: ProductSeed): Promise<RawOffer[]> {
 async function fetchLiveOffers(
   product: ProductSeed,
   deep: boolean,
+  blockedRetailers: BlockedRetailer[],
 ): Promise<RawOffer[]> {
   const tasks: Array<Promise<RawOffer[]>> = [
     fetchTcgCsvOffers(product),
     fetchCardKingdomOffers(product),
   ];
   if (deep) {
-    // Broad site search + dedicated watch-store fetchers (includes big-box).
-    tasks.push(fetchWebRetailerOffers(product));
-    tasks.push(fetchPreorderWatchOffers(product));
+    tasks.push(fetchWebRetailerOffers(product, blockedRetailers));
+    tasks.push(fetchPreorderWatchOffers(product, undefined, blockedRetailers));
   } else {
-    // Even quick sync should hit the core watch list (Flipside, Forge, MM, etc.).
-    tasks.push(fetchPreorderWatchOffers(product));
+    tasks.push(fetchPreorderWatchOffers(product, undefined, blockedRetailers));
   }
 
   const settled = await Promise.allSettled(tasks);

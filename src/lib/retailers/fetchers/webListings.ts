@@ -4,7 +4,9 @@ import {
   retailerName,
   type RetailerId,
 } from "../allowlist";
-import { fetchText } from "../http";
+import { fetchPage, fetchText } from "../http";
+import type { BlockedRetailer } from "../blocked";
+import { blockedRetailer } from "../blocked";
 import { listingsFromJsonLd, listingFromOgMeta } from "../parsePrice";
 import {
   searchQueriesForProduct,
@@ -121,10 +123,20 @@ function gamenerdzCandidateUrls(product: ProductSeed): string[] {
   }
 }
 
-async function listingsFromPage(pageUrl: string) {
-  const res = await fetchText(pageUrl);
-  if (!res.ok || res.text.length < 400) return [];
-  if (/\/blocked|captcha|access denied/i.test(res.url + res.text.slice(0, 2000))) {
+async function listingsFromPage(pageUrl: string, blocked?: BlockedRetailer[]) {
+  const res = await fetchPage(pageUrl);
+  if (!res.ok || res.text.length < 400) {
+    if (res.blocked && blocked) {
+      const retailerId = retailerForUrl(pageUrl);
+      if (retailerId) {
+        blocked.push(
+          blockedRetailer(retailerId, pageUrl, res.blockedReason ?? "bot-wall"),
+        );
+      }
+    }
+    return [];
+  }
+  if (res.blocked || /\/blocked|captcha|access denied/i.test(res.url + res.text.slice(0, 2000))) {
     return [];
   }
   const fromLd = listingsFromJsonLd(res.text, res.url);
@@ -164,14 +176,31 @@ function searchSitePriority(domain: string): number {
  */
 export async function fetchWebRetailerOffers(
   product: ProductSeed,
+  blocked?: BlockedRetailer[],
 ): Promise<RawOffer[]> {
   const queries = searchQueriesForProduct(product);
   const urlCandidates = new Set<string>();
 
+  if (product.listingUrls) {
+    for (const url of Object.values(product.listingUrls)) {
+      if (url) urlCandidates.add(url.split("#")[0]!.split("?")[0]!);
+    }
+  }
+
   for (const u of gamenerdzCandidateUrls(product)) urlCandidates.add(u);
+
+  const bigBoxDomains = new Set([
+    "amazon.com",
+    "target.com",
+    "walmart.com",
+    "bestbuy.com",
+    "gamestop.com",
+    "barnesandnoble.com",
+  ]);
 
   const searchSites = [...DEEP_SEARCH_RETAILERS]
     .sort((a, b) => searchSitePriority(a.domain) - searchSitePriority(b.domain))
+    .filter((r) => !bigBoxDomains.has(r.domain.replace(/^www\./, "")))
     .slice(0, MAX_SEARCH_SITES)
     .map((r) => r.domain.replace(/^www\./, ""));
 
@@ -197,7 +226,9 @@ export async function fetchWebRetailerOffers(
   const seen = new Set<string>();
 
   const pages = [...urlCandidates].slice(0, MAX_PRODUCT_PAGES);
-  const results = await Promise.allSettled(pages.map((u) => listingsFromPage(u)));
+  const results = await Promise.allSettled(
+    pages.map((u) => listingsFromPage(u, blocked)),
+  );
 
   for (let i = 0; i < results.length; i++) {
     const result = results[i]!;

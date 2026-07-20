@@ -51,8 +51,9 @@ export function DealList({ deals, budgetCents, loading, mode }: Props) {
     return (
       <p className="text-[var(--parchment)]/70">
         No live retailer listings fit under {formatUsd(budgetCents)} after item +
-        shipping + tax. Raise your budget, widen sealed types, or try again in a
-        minute while stores refresh.
+        shipping + tax. Raise your budget, widen sealed types, or wait while stores
+        refresh. Big-box stores (Amazon, Target, Walmart) may need a manual check if
+        bot-blocked.
       </p>
     );
   }
